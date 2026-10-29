@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 
 export const maxDuration = 60;
 
+const IDENTIFY_OFFLINE =
+  "Photo auto-detect needs the local editing engine";
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -14,7 +17,7 @@ export async function POST(request: Request) {
 
   const inferenceUrl = process.env.INFERENCE_URL;
   if (!inferenceUrl) {
-    return NextResponse.json({ error: "The AI engine is not configured." }, { status: 503 });
+    return NextResponse.json({ error: IDENTIFY_OFFLINE }, { status: 503 });
   }
 
   let incoming: FormData;
@@ -41,10 +44,7 @@ export async function POST(request: Request) {
         : undefined,
     });
   } catch {
-    return NextResponse.json(
-      { error: "The AI engine is not reachable. Is the inference server running?" },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: IDENTIFY_OFFLINE }, { status: 502 });
   }
   if (!res.ok) {
     return NextResponse.json({ error: `Identification failed (${res.status}).` }, { status: 502 });

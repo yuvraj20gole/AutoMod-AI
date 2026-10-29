@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isValidMod, type ModCategory } from "@/lib/mods";
 import { pickPhotoForMod, neededAnglesText } from "@/lib/angles";
+import { EDITING_OFFLINE_MESSAGE } from "@/lib/engines/offline";
 
 export const maxDuration = 300;
 
@@ -19,10 +20,7 @@ export async function POST(request: Request) {
 
   const inferenceUrl = process.env.INFERENCE_URL;
   if (!inferenceUrl) {
-    return NextResponse.json(
-      { error: "The AI engine is not configured. Set INFERENCE_URL in .env.local." },
-      { status: 503 }
-    );
+    return NextResponse.json({ error: EDITING_OFFLINE_MESSAGE }, { status: 503 });
   }
 
   let body: { carId?: string; category?: string; option?: string; photoId?: string };
@@ -92,10 +90,7 @@ export async function POST(request: Request) {
         : undefined,
     });
   } catch {
-    return NextResponse.json(
-      { error: "The AI engine is not reachable. Is the inference server running?" },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: EDITING_OFFLINE_MESSAGE }, { status: 502 });
   }
 
   if (engineResponse.status === 422) {

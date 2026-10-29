@@ -23,6 +23,18 @@ function envUrl(): string {
   return (process.env.OLLAMA_URL ?? "http://localhost:11434").replace(/\/$/, "");
 }
 
+/**
+ * Whether we should probe Ollama at all.
+ * On Vercel without OLLAMA_URL, localhost is never reachable — skip the probe
+ * so Advisor falls straight to Basic with no multi-second hang or error toast.
+ */
+export function shouldProbeOllama(opts: OllamaChatOptions = {}): boolean {
+  if (opts.baseUrl?.trim() || opts.fetchFn) return true;
+  if (process.env.OLLAMA_URL?.trim()) return true;
+  if (process.env.VERCEL) return false;
+  return true;
+}
+
 function preferredModel(available: string[]): string | null {
   const env = process.env.OLLAMA_MODEL?.trim();
   if (env) return env;
@@ -43,6 +55,14 @@ function preferredModel(available: string[]): string | null {
 
 /** List local models; never throws. */
 export async function probeOllama(opts: OllamaChatOptions = {}): Promise<OllamaStatus> {
+  if (!shouldProbeOllama(opts)) {
+    return {
+      ok: false,
+      model: null,
+      models: [],
+      reason: "Ollama not configured on this host",
+    };
+  }
   const baseUrl = opts.baseUrl ?? envUrl();
   const fetchFn = opts.fetchFn ?? fetch;
   const timeoutMs = opts.timeoutMs ?? OLLAMA_TIMEOUT_MS;

@@ -13,6 +13,7 @@ import {
   type ModCategory,
 } from "@/lib/mods";
 import { ANGLE_LABEL, neededAnglesText, pickPhotoForMod, type PhotoAngle } from "@/lib/angles";
+import { EDITING_OFFLINE_MESSAGE, isEditingOffline } from "@/lib/engines/offline";
 import CompareSlider from "./CompareSlider";
 
 export type StudioPhoto = { id: string; angle: PhotoAngle; url: string };
@@ -314,7 +315,8 @@ export default function StudioClient({
     }
   }
 
-  const detailedDisabled = engines.detailed ? !engines.detailed.ready : false;
+  const editingOffline = isEditingOffline(engines);
+  const detailedDisabled = editingOffline || (engines.detailed ? !engines.detailed.ready : false);
   const progressLabel =
     jobPhase === "queued"
       ? "Queued — waiting for the previous edit to finish…"
@@ -446,9 +448,11 @@ export default function StudioClient({
               <span
                 className={`mt-0.5 block text-xs ${engine === "detailed" ? "text-neutral-300" : "text-neutral-500"}`}
               >
-                {detailedDisabled
-                  ? engines.detailed?.reason ?? "Unavailable on this Mac"
-                  : "About 4 min, adds new body parts"}
+                {editingOffline
+                  ? "Unavailable on this host"
+                  : detailedDisabled
+                    ? engines.detailed?.reason ?? "Unavailable on this Mac"
+                    : "About 4 min, adds new body parts"}
               </span>
             </button>
           </div>
@@ -527,13 +531,19 @@ export default function StudioClient({
 
         <button
           onClick={generate}
-          disabled={loading || !activePhoto || (engine === "detailed" && detailedDisabled)}
+          disabled={
+            loading || !activePhoto || editingOffline || (engine === "detailed" && detailedDisabled)
+          }
+          title={editingOffline ? EDITING_OFFLINE_MESSAGE : undefined}
           className="w-full rounded-full bg-neutral-900 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-60"
         >
           {loading ? "Generating…" : result ? "Generate again" : "Generate preview"}
         </button>
+        {editingOffline ? (
+          <p className="text-sm text-neutral-600">{EDITING_OFFLINE_MESSAGE}</p>
+        ) : null}
 
-        {showCompare && (
+        {showCompare && !editingOffline && (
           <div className="space-y-2">
             {!compareConfirm ? (
               <button
