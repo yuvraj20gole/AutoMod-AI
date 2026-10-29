@@ -1,7 +1,11 @@
 import { UPGRADES, type EngineType, type Goal } from "./data";
 import {
+  classifyNonUpgrade,
+  FALLBACK_CAR_INFO,
   intentFromRules,
+  isAdvisorFallbackMessage,
   mergeIntent,
+  nextFallbackMessage,
   trimHistory,
   type AdvisorIntent,
   type ChatMessage,
@@ -194,7 +198,10 @@ export async function runAdvisorChat(
   let intent: AdvisorIntent | null = null;
   let intentFromLlm = false;
 
-  if (!req.forceBasic) {
+  // Spec / unrelated questions: fixed template, no LLM (rules take priority).
+  const nonUpgradeEarly = classifyNonUpgrade(userText);
+
+  if (!nonUpgradeEarly && !req.forceBasic) {
     const probe = await probeOllama(req.ollama);
     if (probe.ok && probe.model) {
       model = probe.model;
@@ -217,7 +224,7 @@ export async function runAdvisorChat(
   }
 
   if (!intent) {
-    // Rule fallback (also when forceBasic / Ollama down / bad JSON).
+    // Rule fallback (also when forceBasic / Ollama down / bad JSON / non-upgrade).
     const merged = intentFromRules(userText, prior);
     intent = {
       goal: merged.goal,
@@ -249,6 +256,37 @@ export async function runAdvisorChat(
     engine,
   };
 
+  // Prefer rule classification; honour LLM off_topic / bare "other" only when
+  // there is no upgrade goal or budget to act on.
+  const nonUpgrade: "off_topic_car_info" | "other" | null =
+    nonUpgradeEarly ??
+    (merged.question_type === "off_topic_car_info"
+      ? "off_topic_car_info"
+      : merged.question_type === "other" && !merged.goal && merged.budgetMax === null
+        ? "other"
+        : null);
+
+  if (nonUpgrade === "off_topic_car_info" || nonUpgrade === "other") {
+    const explanation = nextFallbackMessage(history, nonUpgrade);
+    return {
+      mode: req.forceBasic ? "basic" : mode,
+      model: req.forceBasic ? null : model,
+      statusLabel: statusLabel(req.forceBasic ? "basic" : mode, model),
+      intent: { ...intent, question_type: nonUpgrade, goal: intent.goal ?? null },
+      state: { goal: prior.goal, budgetMax: prior.budgetMax, engine: prior.engine ?? catalogueEngine },
+      result: null,
+      ...carFields,
+      explanation,
+      explanationSource: "template",
+      needs: {
+        goal: !prior.goal,
+        engine: !(prior.engine ?? catalogueEngine),
+        budget: prior.budgetMax === null,
+      },
+      ask: explanation,
+    };
+  }
+
   const { needs, ask } = needsAsk(state, catalogueEngine);
 
   // Incomplete — ask next question with a short template (no LLM inventing).
@@ -257,6 +295,14 @@ export async function runAdvisorChat(
     if (intent.goal) bits.push(goalBit(intent.goal));
     if (state.budgetMax !== null) bits.push(`budget up to ${formatINR(state.budgetMax)}`);
     const summary = bits.length ? `Got it — ${bits.join(", ")}. ` : "";
+    // Avoid repeating the same upgrade ask twice in a row.
+    let explanation = `${summary}${ask ?? "Tell me a bit more so I can recommend parts."}`;
+    if (!summary) {
+      const lastAssistant = [...history].reverse().find((m) => m.role === "assistant");
+      if (lastAssistant && isAdvisorFallbackMessage(lastAssistant.content)) {
+        explanation = nextFallbackMessage(history, "other");
+      }
+    }
     return {
       mode: req.forceBasic ? "basic" : mode,
       model: req.forceBasic ? null : model,
@@ -265,7 +311,7 @@ export async function runAdvisorChat(
       state,
       result: null,
       ...carFields,
-      explanation: `${summary}${ask ?? "Tell me a bit more so I can recommend parts."}`,
+      explanation,
       explanationSource: "template",
       needs: {
         goal: !state.goal,
@@ -305,6 +351,9 @@ export async function runAdvisorChat(
       if (check.ok && raw.trim()) {
         explanation = raw.trim();
         explanationSource = "llm";
+      } else if (!check.ok && check.reason.startsWith("invented car spec")) {
+        // 3B must not invent stock engine/power/mileage facts for a specific car.
+        explanation = FALLBACK_CAR_INFO;
       } else {
         explanation = templateExplanation(
           carName(rcar),

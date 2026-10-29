@@ -4,12 +4,17 @@ import {
   mergeIntent,
   intentFromRules,
   trimHistory,
+  classifyNonUpgrade,
+  FALLBACK_CAR_INFO,
+  FALLBACK_UPGRADE_ONLY,
+  nextFallbackMessage,
 } from "./intent";
 import {
   postCheckExplanation,
   allowedFactsFromResult,
   computeBudgetFacts,
   findFalseBudgetClaims,
+  findInventedCarSpecs,
   templateExplanation,
 } from "./explain";
 import { runAdvisorChat } from "./chat";
@@ -91,6 +96,125 @@ describe("multi-turn follow-up resolution", () => {
     });
     expect(r.question_type).toBe("cheaper");
     expect(r.budgetMax).toBe(30_000);
+  });
+
+  it("classifies stock engine / power questions as off_topic_car_info", () => {
+    expect(classifyNonUpgrade("What is the current engine in my car")).toBe(
+      "off_topic_car_info"
+    );
+    expect(classifyNonUpgrade("how much power does it make")).toBe("off_topic_car_info");
+    expect(classifyNonUpgrade("is it good for the track")).toBe("off_topic_car_info");
+    expect(classifyNonUpgrade("what's the weather")).toBe("other");
+    expect(classifyNonUpgrade("more power under 50k")).toBeNull();
+  });
+
+  it("varies the fallback when the previous assistant line was already a fallback", () => {
+    expect(nextFallbackMessage([], "off_topic_car_info")).toBe(FALLBACK_CAR_INFO);
+    expect(
+      nextFallbackMessage(
+        [
+          { role: "user", content: "What is the current engine in my car" },
+          { role: "assistant", content: FALLBACK_CAR_INFO },
+        ],
+        "off_topic_car_info"
+      )
+    ).toBe(FALLBACK_UPGRADE_ONLY);
+  });
+});
+
+describe("non-upgrade fallbacks", () => {
+  const offline = {
+    fetchFn: async () => {
+      throw new Error("ECONNREFUSED");
+    },
+  };
+
+  it("answers an engine question with the car-info template (no LLM inventing)", async () => {
+    const out = await runAdvisorChat({
+      messages: [{ role: "user", content: "What is the current engine in my car" }],
+      car: { make: "Toyota", model: "Corolla Altis", year: 2018 },
+      forceBasic: true,
+      ollama: offline,
+    });
+    expect(out.intent?.question_type).toBe("off_topic_car_info");
+    expect(out.explanation).toBe(FALLBACK_CAR_INFO);
+    expect(out.explanationSource).toBe("template");
+    expect(out.result).toBeNull();
+    expect(out.explanation).not.toMatch(/\d+\s*(?:hp|bhp|l\b|cc)/i);
+  });
+
+  it("varies the message when the same fallback would fire twice", async () => {
+    const out = await runAdvisorChat({
+      messages: [
+        { role: "user", content: "What is the current engine in my car" },
+        { role: "assistant", content: FALLBACK_CAR_INFO },
+        { role: "user", content: "how much power does it make" },
+      ],
+      car: { make: "Toyota", model: "Corolla Altis", year: 2018 },
+      forceBasic: true,
+      ollama: offline,
+    });
+    expect(out.explanation).toBe(FALLBACK_UPGRADE_ONLY);
+    expect(out.result).toBeNull();
+  });
+
+  it("general mode stays honest about specs (no car selected)", async () => {
+    const out = await runAdvisorChat({
+      messages: [{ role: "user", content: "What is the current engine in my car" }],
+      car: null,
+      forceBasic: true,
+      ollama: offline,
+    });
+    expect(out.carResolution).toBe("generic");
+    expect(out.explanation).toBe(FALLBACK_CAR_INFO);
+    expect(out.explanation).not.toMatch(/1\.8|140\s*hp|petrol naturally/i);
+    expect(out.result).toBeNull();
+  });
+
+  it("redirects unrelated questions like weather without inventing an answer", async () => {
+    const out = await runAdvisorChat({
+      messages: [{ role: "user", content: "what's the weather" }],
+      car: { make: "Hyundai", model: "Verna", year: 2020 },
+      forceBasic: true,
+      ollama: offline,
+    });
+    expect(out.intent?.question_type).toBe("other");
+    expect(out.explanation).toBe(FALLBACK_UPGRADE_ONLY);
+    expect(out.result).toBeNull();
+  });
+
+  it("post-check rejects invented stock power figures and chat swaps to the template", async () => {
+    expect(findInventedCarSpecs("Your Corolla makes about 140 hp from a 1.8 litre engine.")).toMatch(
+      /invented car spec/
+    );
+    const out = await runAdvisorChat(
+      {
+        messages: [{ role: "user", content: "more power under 50k" }],
+        car: { make: "Toyota", model: "Corolla Altis", year: 2018 },
+        state: { engine: "petrol_na" },
+        ollama: {
+          fetchFn: async () =>
+            new Response(JSON.stringify({ models: [{ name: "qwen2.5:3b-instruct" }] }), {
+              status: 200,
+            }),
+        },
+      },
+      {
+        intentFn: async () => ({
+          goal: "power",
+          budget: 50_000,
+          car: null,
+          parts: [],
+          style: null,
+          question_type: "recommend",
+          engine: "petrol_na",
+        }),
+        explainFn: async () =>
+          "Your 2018 Toyota Corolla Altis has a 1.8L engine making 140 hp. Start with a remap.",
+      }
+    );
+    expect(out.explanation).toBe(FALLBACK_CAR_INFO);
+    expect(out.explanationSource).toBe("template");
   });
 });
 

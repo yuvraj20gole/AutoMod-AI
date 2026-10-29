@@ -181,6 +181,32 @@ export function findFalseBudgetClaims(
 }
 
 /**
+ * Reject invented stock engine / power / mileage claims for a specific car.
+ * Catalogue engine type labels used in upgrade explanations are allowed when
+ * they appear without numeric displacement or power figures.
+ */
+export function findInventedCarSpecs(explanation: string): string | null {
+  const t = explanation;
+  if (/\b\d+(?:\.\d+)?\s*(?:l|litre|liter)\b/i.test(t)) {
+    return "invented car spec displacement";
+  }
+  if (/\b\d{3,5}\s*cc\b/i.test(t)) return "invented car spec displacement";
+  if (/\b\d{2,4}\s*(?:hp|bhp|ps)\b/i.test(t)) return "invented car spec power";
+  if (/\b\d{2,4}\s*(?:nm|n·m|n-m)\b/i.test(t)) return "invented car spec torque";
+  if (/\b\d{1,2}(?:\.\d+)?\s*kmpl\b/i.test(t)) return "invented car spec mileage";
+  if (/\b(?:makes?|produces?|puts?\s+out)\s+(?:about\s+|around\s+|roughly\s+)?\d/i.test(t)) {
+    return "invented car spec power";
+  }
+  if (
+    /\b(?:stock|factory|oem)\s+(?:engine|power|hp|output|mileage)\b/i.test(t) &&
+    /\b\d/.test(t)
+  ) {
+    return "invented car spec stock claim";
+  }
+  return null;
+}
+
+/**
  * Broader check: also reject known upgrade names that are not in this result,
  * brand-y tokens, and false budget-fit claims.
  */
@@ -192,6 +218,9 @@ export function postCheckExplanation(
 ): { ok: true } | { ok: false; reason: string } {
   const priceHit = findInventedClaims(explanation, allowed);
   if (priceHit) return { ok: false, reason: priceHit };
+
+  const specHit = findInventedCarSpecs(explanation);
+  if (specHit) return { ok: false, reason: specHit };
 
   if (budgetFacts) {
     const budgetHit = findFalseBudgetClaims(explanation, budgetFacts);

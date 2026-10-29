@@ -18,7 +18,15 @@ export const IntentSchema = z.object({
   parts: z.array(z.string()).optional().default([]),
   style: z.string().nullable().optional(),
   question_type: z
-    .enum(["recommend", "cheaper", "follow_up", "clarify", "other"])
+    .enum([
+      "recommend",
+      "cheaper",
+      "follow_up",
+      "clarify",
+      "other",
+      /** Car specs / capability questions the rule engine cannot answer. */
+      "off_topic_car_info",
+    ])
     .optional()
     .default("recommend"),
   /** Optional; rule parser / prior turn may also supply this. */
@@ -28,6 +36,110 @@ export const IntentSchema = z.object({
 export type AdvisorIntent = z.infer<typeof IntentSchema>;
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
+
+/** First reply when the user asks for stock engine / power / mileage / trim. */
+export const FALLBACK_CAR_INFO =
+  "I only have your car's make, model and year, so I can't confirm its engine or specs. I can plan upgrades for it though. Try one of the suggestions below.";
+
+/** Second (or unrelated) reply — upgrade-only redirect. */
+export const FALLBACK_UPGRADE_ONLY =
+  "I can only help with upgrade ideas, parts and budgets. Pick a suggestion below or tell me a goal, like more power, better brakes or looks.";
+
+const GENERIC_UPGRADE_ASK =
+  /^what do you want to upgrade/i;
+
+/** True when the last assistant line was already a non-upgrade fallback. */
+export function isAdvisorFallbackMessage(text: string): boolean {
+  const t = text.trim();
+  if (!t) return false;
+  if (t === FALLBACK_CAR_INFO || t === FALLBACK_UPGRADE_ONLY) return true;
+  if (GENERIC_UPGRADE_ASK.test(t)) return true;
+  return false;
+}
+
+/**
+ * Pick the fixed fallback line. If the previous assistant message was already
+ * a fallback, vary to FALLBACK_UPGRADE_ONLY so we never repeat the same line.
+ */
+export function nextFallbackMessage(
+  history: ChatMessage[],
+  kind: "off_topic_car_info" | "other"
+): string {
+  const lastAssistant = [...history].reverse().find((m) => m.role === "assistant");
+  if (lastAssistant && isAdvisorFallbackMessage(lastAssistant.content)) {
+    return FALLBACK_UPGRADE_ONLY;
+  }
+  return kind === "off_topic_car_info" ? FALLBACK_CAR_INFO : FALLBACK_UPGRADE_ONLY;
+}
+
+/**
+ * Detect questions that are not upgrade requests.
+ * Returns off_topic_car_info for stock specs / capability, other for unrelated,
+ * or null when the text looks like a normal upgrade turn.
+ */
+export function classifyNonUpgrade(
+  userText: string
+): "off_topic_car_info" | "other" | null {
+  const t = userText.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!t) return null;
+
+  // Clear upgrade / budget signals win.
+  if (/\b(under|within|below)\s+(?:rs\.?|₹|inr)?\s*\d/i.test(t)) return null;
+  if (/\b(more power|upgrade|recommend|cheaper|suggest (?:parts|upgrades))\b/.test(t)) {
+    return null;
+  }
+  if (/\b(i want|i need|looking for|can you (?:suggest|recommend)|please (?:suggest|recommend))\b/.test(t)) {
+    return null;
+  }
+
+  // Stock specs / capability — rule engine has make/model/year only.
+  if (
+    /\b(?:what|which|current)\s+(?:is\s+)?(?:the\s+)?(?:engine|trim|variant|mileage|specs?)\b/.test(
+      t
+    )
+  ) {
+    return "off_topic_car_info";
+  }
+  if (/\bhow\s+much\s+(?:power|hp|bhp|horsepower|torque|mileage)\b/.test(t)) {
+    return "off_topic_car_info";
+  }
+  if (
+    /\b(?:engine|mileage|trim|variant|specs?)\s+(?:in|of|on|for)\s+(?:my|the|this)\b/.test(t)
+  ) {
+    return "off_topic_car_info";
+  }
+  if (/\bwhat(?:'s| is|s)?\s+(?:the\s+)?(?:current\s+)?engine\b/.test(t)) {
+    return "off_topic_car_info";
+  }
+  if (/\b(?:good|suitable|ready)\s+for\s+(?:the\s+)?track\b/.test(t)) {
+    return "off_topic_car_info";
+  }
+  if (/\bis\s+it\s+(?:any\s+)?good\s+for\b/.test(t)) return "off_topic_car_info";
+  if (/\b(?:stock|factory|oem)\s+(?:power|hp|engine|specs?|mileage)\b/.test(t)) {
+    return "off_topic_car_info";
+  }
+  if (
+    /\b(?:horsepower|bhp|kmpl|fuel\s+economy|displacement)\b/.test(t) &&
+    !/\b(?:want|add|upgrade|fit|install)\b/.test(t)
+  ) {
+    return "off_topic_car_info";
+  }
+  if (/\bdoes\s+it\s+(?:make|have|come\s+with)\b/.test(t) && /\b(?:power|hp|bhp|engine|torque)\b/.test(t)) {
+    return "off_topic_car_info";
+  }
+
+  // Unrelated (weather, news, …).
+  if (
+    /\b(?:weather|forecast|temperature outside|news today|stock market|recipe|cricket score|football score)\b/.test(
+      t
+    )
+  ) {
+    return "other";
+  }
+  if (/\bwhat(?:'s| is|s)\s+the\s+weather\b/.test(t)) return "other";
+
+  return null;
+}
 
 /** Keep the last N turns (user+assistant pairs count as messages). */
 export function trimHistory(messages: ChatMessage[], max = 6): ChatMessage[] {
@@ -125,6 +237,22 @@ export function intentFromRules(
   userText: string,
   prior: { goal: Goal | null; budgetMax: number | null; engine: EngineType | null }
 ): ReturnType<typeof mergeIntent> {
+  const nonUpgrade = classifyNonUpgrade(userText);
+  if (nonUpgrade) {
+    // Do not let keyword parsers turn "how much power…" into a power upgrade goal.
+    return mergeIntent(
+      {
+        goal: null,
+        budget: null,
+        car: null,
+        parts: [],
+        style: null,
+        question_type: nonUpgrade,
+        engine: null,
+      },
+      prior
+    );
+  }
   const parsed = parseRequest(userText);
   const cheaper = /\b(cheaper|less\s+expensive|lower\s+budget|cut\s+cost)\b/i.test(userText);
   const intent: AdvisorIntent = {

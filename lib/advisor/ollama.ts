@@ -166,14 +166,16 @@ Reply with ONLY a JSON object (no markdown) matching:
  "car": string_or_null,
  "parts": string[],
  "style": string_or_null,
- "question_type":"recommend"|"cheaper"|"follow_up"|"clarify"|"other",
+ "question_type":"recommend"|"cheaper"|"follow_up"|"clarify"|"other"|"off_topic_car_info",
  "engine":"petrol_na"|"petrol_turbo"|"diesel"|null}
 Rules:
 - goal must be one of those six or null.
 - budget is a spending ceiling in Indian rupees when the user gives one (e.g. 50000, "50k", "1 lakh").
 - question_type=cheaper when they ask for cheaper / lower budget options.
+- question_type=off_topic_car_info when they ask about the car's own stock engine, power, mileage, trim, or track suitability — we do not have that data.
+- question_type=other for unrelated topics (weather, news, etc.).
 - Follow-ups like "and for the rear?" or "what about brakes?" update goal/parts; keep prior budget unless they change it.
-- Never invent shops, brands, or prices. JSON only.`;
+- Never invent shops, brands, prices, or engine/spec facts. JSON only.`;
 
 export async function extractIntentWithLlm(
   history: ChatMessage[],
@@ -249,6 +251,7 @@ const EXPLAIN_SYSTEM = `You write a short, friendly Upgrade Advisor reply for Au
 Hard rules:
 - Use ONLY the facts in the JSON context (part names, prices, difficulty, installer trades, warnings, budgetFacts).
 - Do NOT invent part names, brands, shops, or prices.
+- Do NOT invent stock engine, displacement, horsepower, torque, or mileage figures for the car.
 - Budget fit: describe whether items fit the budget ONLY using budgetFacts (fitsAlone / maxFits / minFits and comboWithinBudget). Never invent budget-fit claims. If fitsAlone is true, do not say the item is over budget, exceeds the budget, or does not fit within the budget.
 - You may say several items together can exceed the ceiling only when referring to comboWithinBudget (items NOT in that list, or the sum of all max prices).
 - Max ~120 words. Plain prose, no markdown lists unless needed.
