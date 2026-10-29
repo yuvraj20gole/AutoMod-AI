@@ -88,6 +88,8 @@ The Advisor (sidebar → **Advisor**, or per-car) is deliberately boring about f
 | Models | InstructPix2Pix, YOLO11 panel weights (`weights/panel_best.pt`), Qwen-Image-Edit-2511 q4 (mflux), Ollama Qwen2.5 3B |
 | Tooling | Vitest (`npm test`), `npm run start:all` / `bash scripts/stop.sh` |
 
+*Built on InstructPix2Pix, Ultralytics YOLO11, Qwen-Image-Edit, mflux, Ollama and Supabase. Their own licences apply. This repository has no `LICENSE` file yet.*
+
 ## Quick start
 
 **Prerequisites:** Node.js 20+, Python 3.11+ with `inference/.venv`, a Supabase project, optional Ollama + `qwen2.5:3b-instruct` for Advisor Local mode, Apple Silicon + [mflux](https://github.com/filipstrand/mflux) for Detailed.
@@ -114,10 +116,6 @@ Open [http://localhost:3000](http://localhost:3000). Ctrl+C stops both processes
 npm test    # Vitest — advisor, mods, builds paths, …
 ```
 
-## Demo car
-
-The primary demo vehicle in-app and in these screenshots is a **2018 Toyota Corolla** (silver studio photos). Secondary catalogue cars for the Advisor include Hyundai Creta / Verna and Honda City where curated.
-
 ## Limitations
 
 - Detailed is **slow** and needs on the order of **~31 GB** of memory; only one edit runs at a time across Fast and Detailed.
@@ -125,14 +123,6 @@ The primary demo vehicle in-app and in these screenshots is a **2018 Toyota Coro
 - Low-resolution or heavily compressed phone photos give weak or soft results.
 - Advisor prices are curated India ranges (last reviewed in-repo), **not** live marketplace prices.
 - Advisor guidance is **not** an engineering guarantee — confirm fitment with a qualified mechanic before buying.
-
-## Team & acknowledgements
-
-**Team:** Yooraj Gole, Yash Sawant, Yuvraj Gandhi, Nisarg Mulik — Vidyalankar Institute of Technology, Sem 7 Deep Learning mini project.
-
-**Built with:** [InstructPix2Pix](https://github.com/timothybrooks/instruct-pix2pix), [Ultralytics YOLO11](https://github.com/ultralytics/ultralytics), [Qwen-Image-Edit](https://github.com/QwenLM/Qwen-Image) / mflux-community q4 weights, [mflux](https://github.com/filipstrand/mflux), Lightning LoRA (LightX2V), [Ollama](https://ollama.com/) / Qwen2.5, [Supabase](https://supabase.com/). Model and library licences — **see upstream**.
-
-**Licence:** This repository has **no `LICENSE` file** yet. Do not assume a public open-source grant until one is added. Upstream model cards and library licences still apply to the weights and tools listed above — **see upstream**.
 
 ## Repo layout (high level)
 
@@ -146,9 +136,6 @@ The primary demo vehicle in-app and in these screenshots is a **2018 Toyota Coro
 | `supabase/migrations/` | Schema + RLS for cars, builds, photos, edit_jobs |
 | `docs/screenshots/` | Images used by this README |
 
-## Further reading
+---
 
-- Project brief: [`CLAUDE-2.md`](./CLAUDE-2.md)
-- Inference engines & endpoints: [`inference/README.md`](./inference/README.md)
-- Screenshot inventory: [`docs/screenshots/README.md`](./docs/screenshots/README.md)
-
+<p align="center">Made by <b>Yooraj Gole</b></p>
