@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { runAdvisorChat, type AdvisorChatState } from "@/lib/advisor/chat";
+import { runAdvisorChat, type AdvisorChatState, type CarResolution } from "@/lib/advisor/chat";
 import type { ChatMessage } from "@/lib/advisor/intent";
 import type { EngineType, Goal } from "@/lib/advisor/data";
 
@@ -28,7 +28,8 @@ function chunkText(text: string, size = 18): string[] {
 
 /**
  * POST /api/advisor/chat
- * Body: { messages, car: { make, model, year }, state? }
+ * Body: { messages, car?: { make, model, year }, carResolution?, state? }
+ * `car` is optional (general chat): the car is then identified from the text or generic.
  * Response: text/event-stream with meta → token* → done
  */
 export async function POST(request: Request) {
@@ -42,7 +43,8 @@ export async function POST(request: Request) {
 
   let body: {
     messages?: ChatMessage[];
-    car?: { make?: string; model?: string; year?: number | null };
+    car?: { make?: string; model?: string; year?: number | null } | null;
+    carResolution?: CarResolution;
     state?: Partial<AdvisorChatState>;
   };
   try {
@@ -51,11 +53,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
+  if (!Array.isArray(body.messages)) {
+    return NextResponse.json({ error: "messages required" }, { status: 400 });
+  }
   const make = body.car?.make?.trim();
   const model = body.car?.model?.trim();
-  if (!make || !model || !Array.isArray(body.messages)) {
-    return NextResponse.json({ error: "messages and car.make/model required" }, { status: 400 });
-  }
+  // Car is optional: only use it when both make and model are present.
+  const car =
+    make && model ? { make, model, year: body.car?.year ?? null } : null;
 
   const forceBasic = await detailedJobBusy(supabase, user.id);
 
@@ -68,11 +73,8 @@ export async function POST(request: Request) {
       try {
         const response = await runAdvisorChat({
           messages: body.messages!,
-          car: {
-            make,
-            model,
-            year: body.car?.year ?? null,
-          },
+          car,
+          carResolution: body.carResolution === "identified" ? "identified" : undefined,
           state: {
             goal: (body.state?.goal as Goal | null | undefined) ?? null,
             budgetMax: body.state?.budgetMax ?? null,
@@ -92,6 +94,9 @@ export async function POST(request: Request) {
           explanationSource: response.explanationSource,
           needs: response.needs,
           ask: response.ask,
+          car: response.car,
+          carResolution: response.carResolution,
+          carNoteBanner: response.carNoteBanner,
           forceBasic,
         });
 

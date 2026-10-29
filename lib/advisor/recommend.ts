@@ -65,6 +65,31 @@ export function findCatalogueCar(make: string, model: string): CatalogueCar | nu
   return null;
 }
 
+/**
+ * Find a catalogue car mentioned in free text (e.g. "I drive a Creta").
+ * Matches whole-word aliases or "make model" phrases; the longest match
+ * wins so "corolla altis" beats "corolla". Returns null when nothing matches.
+ */
+export function matchCatalogueFromText(text: string): CatalogueCar | null {
+  const t = ` ${normalise(text)} `;
+  if (t.trim() === "") return null;
+  let best: { car: CatalogueCar; len: number } | null = null;
+  for (const car of CAR_CATALOGUE) {
+    const candidates = [
+      ...car.aliases,
+      car.model,
+      `${car.make} ${car.model}`,
+    ].map(normalise);
+    for (const c of candidates) {
+      if (!c) continue;
+      if (t.includes(` ${c} `) && (!best || c.length > best.len)) {
+        best = { car, len: c.length };
+      }
+    }
+  }
+  return best?.car ?? null;
+}
+
 /** Engine pre-fill: catalogue value for known models, else null (ask). */
 export function prefilledEngine(make: string, model: string): EngineType | null {
   return findCatalogueCar(make, model)?.engineType ?? null;

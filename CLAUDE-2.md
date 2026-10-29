@@ -228,11 +228,21 @@ pricing cards.
   keeps the photo exact via panel masking) and **Detailed**
   (Qwen-Image-Edit-2511 q4 via mflux/MLX + Lightning LoRA 0.5, 8 steps,
   guidance 2.5, 768 long side, ~3.5–4 min). Selector next to Generate;
-  Detailed options come from locked prompts in `inference/qwen/prompts.json`
-  (spoilers lip/ducktail/GT wing, side skirts, front lip, rear diffuser,
-  bronze wheels, carbon hood, matte-black wrap, provisional bumper finishes).
-  `lib/mods.ts` has an `engines` field + `visibleOptions(engine)` +
+  Detailed options come from `inference/qwen/prompts.json` — locked spoilers
+  (lip/ducktail/GT wing), body kit (skirts/lip/diffuser + provisional bumper
+  finishes), plus **Fast parity** paint/wrap/wheels/hood. Newly ported
+  options are marked `experimental: true` in prompts + `lib/mods.ts`; Studio
+  shows an **Experimental** tag when Detailed is selected (nothing hidden).
+  Contact sheets: `~/qwen_test/sheets_parity_v3/` (raw large-area edits).
+  `prompts.json` `postprocess` is **`"none"` for every Detailed option**
+  (Lanczos resize of raw Qwen only). Plate paste-back code stays in
+  `plate.py` but is **off** unless `AUTOMOD_PLATE_RESTORE=1`. Review raw
+  sheets: `~/qwen_test/sheets_postfix_v2/`, `~/qwen_test/sheets_cars_v2/`.
+  `lib/mods.ts` has `engines` + `experimental` + `visibleOptions(engine)` +
   `canCompareEngines` / Compare UI in Studio.
+- **My Builds delete:** Each build card has Delete → confirm. `DELETE
+  /api/builds/[id]` removes the owner's row (RLS) and owned `car-photos`
+  before/after paths (`lib/builds/paths.ts`).
 - **Number plate:** Prompt suffix alone is not enough. Shipped fix is
   post-process paste-back (`inference/qwen/plate.py`: trunk-guided classical
   detect + feathered original pixels; YOLO plate when the class fires).
@@ -276,6 +286,17 @@ pricing cards.
   Ollama `keep_alive` is **60s** so chat does not pin VRAM/RAM against
   Detailed. Pull if missing: `ollama pull qwen2.5:3b-instruct`. Vitest
   covers intent/post-check/fallback with a mocked LLM (`npm test`).
+- **Standalone Advisor section:** sidebar "Advisor" → `/dashboard/advisor`
+  (server page loads the user's cars + signed photos) →
+  `components/advisor/AdvisorHub.tsx` with three modes: chat about one of my
+  cars, add a car then chat (`AddCarButton redirectTo` →
+  `/dashboard/advisor?carId=…`), or general chat with no car. `AdvisorClient`
+  takes `car | null`, `generalMode`, `onChangeCar` and shows a car context bar.
+  `runAdvisorChat` accepts an optional car; with none it uses
+  `matchCatalogueFromText` (recommend.ts) on intent.car/message/history, else
+  `{General, guidance}` and returns `carResolution`
+  (`selected|identified|generic`), `car`, `carNoteBanner`. The old
+  `cars/[id]/advisor` route only redirects. Tests: `advisor-hub.test.ts`.
 - **How to start:** `npm run start:all` (`scripts/start.sh`) — engine
   `:8001` + `npm run dev`, waits for `/health` ready, prints whether
   Detailed is available. `scripts/stop.sh` frees 8001/3000 and Qwen

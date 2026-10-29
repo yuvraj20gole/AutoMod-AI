@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import DashboardPageHeader from "@/components/dashboard/DashboardPageHeader";
 import PlaceholderCard from "@/components/dashboard/PlaceholderCard";
 import CompareSlider from "@/components/studio/CompareSlider";
+import DeleteBuildButton from "@/components/dashboard/builds/DeleteBuildButton";
 import { modLabel } from "@/lib/mods";
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
@@ -88,12 +89,15 @@ export default async function MyBuildsPage() {
                       {(build.engine ?? build.params?.engine) === "detailed" ? "Detailed" : "Fast"}
                     </span>
                   </div>
-                  <Link
-                    href={`/dashboard/cars/${build.car_id}/studio`}
-                    className="text-xs font-medium text-amber-700 hover:underline"
-                  >
-                    Open studio
-                  </Link>
+                  <div className="flex flex-col items-end gap-2">
+                    <Link
+                      href={`/dashboard/cars/${build.car_id}/studio`}
+                      className="text-xs font-medium text-amber-700 hover:underline"
+                    >
+                      Open studio
+                    </Link>
+                    <DeleteBuildButton buildId={build.id} />
+                  </div>
                 </div>
               </div>
             );

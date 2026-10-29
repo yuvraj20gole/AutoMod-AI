@@ -34,8 +34,14 @@ to leave the plate blank; post-process also **paste-backs** original plate
 pixels (`qwen/plate.py`: YOLO plate if present, else trunk-guided classical
 detect; fail-safe skip) because Qwen still scribbles into the edit mask.
 Bumper gloss finishes are wired with `"provisional": true` — review
-`~/qwen_test/sheets_bumper/` before locking. Studio **Compare engines** runs
-the counterpart mod on the other engine through the same one-job queue.
+`~/qwen_test/sheets_bumper/` before locking. Paint/wrap/wheels/hood entries
+marked `"experimental": true` are Fast→Detailed parity ports (Studio tag;
+review sheets in `~/qwen_test/sheets_parity_v3/`). Each prompts.json entry
+has `"postprocess": "none"` on **every** option (raw Lanczos resize only).
+Plate paste-back remains in `qwen/plate.py` but defaults **off**
+(`AUTOMOD_PLATE_RESTORE=1` to enable). `runner.py` honours prompts.json.
+Studio **Compare engines** runs the counterpart mod on the other engine
+through the same one-job queue.
 
 Fast edits still use InstructPix2Pix: the photo is segmented into car panels
 (YOLO11, `weights/panel_best.pt`), the model edits the whole frame, and

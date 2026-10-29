@@ -243,7 +243,7 @@ export default async function OverviewPage() {
                     <Link href={`/dashboard/cars/${car.id}/studio`} className={btn}>
                       Studio
                     </Link>
-                    <Link href={`/dashboard/cars/${car.id}/advisor`} className={btn}>
+                    <Link href={`/dashboard/advisor?carId=${car.id}`} className={btn}>
                       Advisor
                     </Link>
                     <Link href="/dashboard/cars" className={btn}>
@@ -330,11 +330,11 @@ export default async function OverviewPage() {
                 </Link>
               )}
               {advisorCarId ? (
-                <Link href={`/dashboard/cars/${advisorCarId}/advisor`} className={btn}>
+                <Link href={`/dashboard/advisor?carId=${advisorCarId}`} className={btn}>
                   Get upgrade advice
                 </Link>
               ) : (
-                <Link href="/dashboard/cars" className={btn}>
+                <Link href="/dashboard/advisor" className={btn}>
                   Get upgrade advice
                 </Link>
               )}

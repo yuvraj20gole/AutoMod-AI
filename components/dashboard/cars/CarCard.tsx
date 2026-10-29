@@ -108,7 +108,7 @@ export default function CarCard({
 
         {!confirming && (
           <Link
-            href={`/dashboard/cars/${car.id}/advisor`}
+            href={`/dashboard/advisor?carId=${car.id}`}
             className="mt-3 ml-2 inline-block rounded-full border border-amber-500 px-4 py-1.5 text-xs font-medium text-neutral-800 transition-colors hover:bg-amber-50"
           >
             Upgrade advisor

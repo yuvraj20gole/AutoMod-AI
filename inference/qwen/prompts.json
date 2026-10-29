@@ -3,61 +3,81 @@
     "prompt": "Add a thin gloss black lip spoiler on the trunk lid. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
     "seed": 7,
     "category": "spoiler",
-    "option": "lip_spoiler"
+    "option": "lip_spoiler",
+    "postprocess": "none",
+    "photo": "rear34"
   },
   "ducktail": {
     "prompt": "Add a small ducktail spoiler on the trunk lid. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
     "seed": 7,
     "category": "spoiler",
-    "option": "ducktail"
+    "option": "ducktail",
+    "postprocess": "none",
+    "photo": "rear34"
   },
   "gt_wing": {
     "prompt": "Add a GT-style rear wing on two uprights on the trunk lid. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
     "seed": 7,
     "category": "spoiler",
-    "option": "gt_wing"
+    "option": "gt_wing",
+    "postprocess": "none",
+    "photo": "rear34"
   },
   "front_lip": {
     "prompt": "Add a gloss black front splitter lip under the front bumper, slightly extended forward. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
     "seed": 7,
     "category": "body",
-    "option": "front_lip"
+    "option": "front_lip",
+    "postprocess": "none",
+    "photo": "front34"
   },
   "side_skirts": {
     "prompt": "Add gloss black side skirts running along the bottom of the doors between the front and rear wheels, close to the ground. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
     "seed": 7,
     "category": "body",
-    "option": "side_skirts"
+    "option": "side_skirts",
+    "postprocess": "none",
+    "photo": "side"
   },
   "rear_diffuser": {
     "prompt": "Add a black rear diffuser with vertical fins under the rear bumper. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
     "seed": 11,
     "category": "body",
-    "option": "rear_diffuser"
+    "option": "rear_diffuser",
+    "postprocess": "none",
+    "photo": "rear34"
   },
   "wheels_bronze": {
-    "prompt": "Change the wheels to bronze alloy wheels with the same design. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "prompt": "Change both visible wheels to bronze. Keep the car, camera angle, lights, plate and background exactly the same.",
     "seed": 7,
     "category": "wheels",
-    "option": "bronze"
+    "option": "bronze",
+    "postprocess": "none",
+    "photo": "side"
   },
   "hood_carbon_fibre": {
-    "prompt": "Replace the hood with a carbon-fibre hood. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "prompt": "Replace the hood with a carbon-fibre hood. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
     "seed": 7,
     "category": "hood",
-    "option": "carbon_fibre"
+    "option": "carbon_fibre",
+    "postprocess": "none",
+    "photo": "front34"
   },
   "wrap_matte_black": {
-    "prompt": "Wrap the car body in matte black vinyl. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "prompt": "Wrap the car body in matte black vinyl. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
     "seed": 7,
     "category": "wrap",
-    "option": "matte_black"
+    "option": "matte_black",
+    "postprocess": "none",
+    "photo": "front34"
   },
   "front_bumper_finish": {
     "prompt": "Add a gloss black finish to the lower front bumper valence below the main body colour, keeping the upper bumper silver. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
     "seed": 11,
     "category": "body",
     "option": "front_bumper_finish",
+    "postprocess": "none",
+    "photo": "front34",
     "chosen_variant": "B",
     "fallback_variant": "B",
     "fallback_seed": 7,
@@ -68,9 +88,155 @@
     "seed": 11,
     "category": "body",
     "option": "rear_bumper_finish",
+    "postprocess": "none",
+    "photo": "rear34",
     "chosen_variant": "B",
     "fallback_variant": "B",
     "fallback_seed": 7,
     "note": "Locked B/seed11 from sheets_bumper; fallback B/seed7 if seed11 looks weak on a new car"
+  },
+  "paint_gloss_black": {
+    "prompt": "Repaint the car body gloss black. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "paint",
+    "option": "gloss_black",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
+  },
+  "paint_candy_red": {
+    "prompt": "Repaint the car body candy red. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "paint",
+    "option": "candy_red",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
+  },
+  "paint_deep_blue": {
+    "prompt": "Repaint the car body deep blue. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "paint",
+    "option": "deep_blue",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
+  },
+  "paint_emerald_green": {
+    "prompt": "Repaint the car body emerald green. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "paint",
+    "option": "emerald_green",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
+  },
+  "paint_bright_orange": {
+    "prompt": "Repaint the car body bright orange. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "paint",
+    "option": "bright_orange",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
+  },
+  "paint_sunshine_yellow": {
+    "prompt": "Repaint the car body sunshine yellow. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "paint",
+    "option": "sunshine_yellow",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
+  },
+  "wrap_satin_blue": {
+    "prompt": "Wrap the car body in satin blue vinyl. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "wrap",
+    "option": "satin_blue",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
+  },
+  "wrap_satin_purple": {
+    "prompt": "Wrap the car body in satin purple vinyl. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "wrap",
+    "option": "satin_purple",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
+  },
+  "wrap_matte_green": {
+    "prompt": "Wrap the car body in matte army green vinyl. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "wrap",
+    "option": "matte_green",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
+  },
+  "wrap_gloss_teal": {
+    "prompt": "Wrap the car body in gloss teal vinyl. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "wrap",
+    "option": "gloss_teal",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
+  },
+  "wrap_satin_orange": {
+    "prompt": "Wrap the car body in satin orange vinyl. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "wrap",
+    "option": "satin_orange",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
+  },
+  "wheels_gloss_black": {
+    "prompt": "Change both visible wheels to gloss black. Keep the car, camera angle, lights, plate and background exactly the same.",
+    "seed": 7,
+    "category": "wheels",
+    "option": "gloss_black",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "side"
+  },
+  "wheels_gold": {
+    "prompt": "Change both visible wheels to gold. Keep the car, camera angle, lights, plate and background exactly the same.",
+    "seed": 7,
+    "category": "wheels",
+    "option": "gold",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "side"
+  },
+  "wheels_white": {
+    "prompt": "Change both visible wheels to white alloy wheels. Keep the tyres black rubber and the same size. Keep the car, camera angle, lights, plate and background exactly the same.",
+    "seed": 7,
+    "category": "wheels",
+    "option": "white",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "side"
+  },
+  "hood_matte_black": {
+    "prompt": "Replace the hood with a matte black hood. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "hood",
+    "option": "matte_black",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
+  },
+  "hood_gloss_red": {
+    "prompt": "Replace the hood with a gloss red hood. Keep the car, camera angle, lights, plate, wheels and background exactly the same.",
+    "seed": 7,
+    "category": "hood",
+    "option": "gloss_red",
+    "experimental": true,
+    "postprocess": "none",
+    "photo": "front34"
   }
 }

@@ -640,7 +640,9 @@ def restore_plate(
 
 def restore_plate_safe(original: Image.Image, edited: Image.Image, **kwargs) -> Image.Image:
     """Never raise — on any failure return edited unchanged."""
-    if os.environ.get("AUTOMOD_PLATE_RESTORE", "1") == "0":
+    # Default OFF — plate paste-back overgrew into wheels / floor on Corolla
+    # sheets. Set AUTOMOD_PLATE_RESTORE=1 to re-enable. Code kept intact.
+    if os.environ.get("AUTOMOD_PLATE_RESTORE", "0") != "1":
         return edited.convert("RGB") if edited.mode != "RGB" else edited
     try:
         return restore_plate(original, edited, **kwargs)

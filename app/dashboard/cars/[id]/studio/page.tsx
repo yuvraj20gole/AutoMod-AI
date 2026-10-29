@@ -46,7 +46,7 @@ export default async function StudioPage({ params }: { params: Promise<{ id: str
         action={
           <div className="flex flex-wrap gap-2">
             <Link
-              href={`/dashboard/cars/${typedCar.id}/advisor`}
+              href={`/dashboard/advisor?carId=${typedCar.id}`}
               className="rounded-full bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-800"
             >
               Upgrade advisor

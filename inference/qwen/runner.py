@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Short-lived Qwen Image Edit job for AutoMod Detailed.
 
-Loads the q4 model + Lightning LoRA, runs one edit, post-processes, writes
-output, and exits so GPU/RAM are released. Invoked as a subprocess by the
-inference server — never keep this process alive across jobs.
+Loads the q4 model + Lightning LoRA, runs one edit, applies prompts.json
+postprocess policy (all options currently ``none`` = Lanczos resize only;
+plate paste-back disabled unless AUTOMOD_PLATE_RESTORE=1), writes output,
+and exits so GPU/RAM are released. Invoked as a subprocess by the inference
+server — never keep this process alive across jobs.
 
 Usage:
   python runner.py --input in.png --output out.png --part lip_spoiler [--seed 7]
@@ -64,13 +66,15 @@ def run_edit(input_path: Path, output_path: Path, part: str, seed: int | None) -
         # otherwise shell out to mflux-generate-qwen-edit.
         raw = _generate(tmp_in, tmp_raw, prompt, use_seed, w, h)
 
-        from postprocess import postprocess  # same directory when run as script
+        from postprocess import postprocess, postprocess_mode_for_part  # same dir as script
 
-        final = postprocess(original, raw, stem=part)
+        mode = postprocess_mode_for_part(part, entry)
+        final = postprocess(original, raw, stem=part, mode=mode)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         final.save(output_path)
         print(
-            f"OK part={part} seed={use_seed} size={final.size[0]}x{final.size[1]} -> {output_path}",
+            f"OK part={part} seed={use_seed} postprocess={mode} "
+            f"size={final.size[0]}x{final.size[1]} -> {output_path}",
             flush=True,
         )
 

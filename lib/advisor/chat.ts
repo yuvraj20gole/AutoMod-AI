@@ -19,7 +19,13 @@ import {
   probeOllama,
   type OllamaChatOptions,
 } from "./ollama";
-import { prefilledEngine, recommend, type AdvisorResult, formatINR } from "./recommend";
+import {
+  matchCatalogueFromText,
+  prefilledEngine,
+  recommend,
+  type AdvisorResult,
+  formatINR,
+} from "./recommend";
 
 export type AdvisorChatMode = "local" | "basic";
 
@@ -29,9 +35,28 @@ export type AdvisorChatState = {
   engine: EngineType | null;
 };
 
+export type AdvisorChatCar = { make: string; model: string; year: number | null };
+
+/** How the car used for this turn was determined. */
+export type CarResolution = "selected" | "identified" | "generic";
+
+export const GENERIC_CAR: AdvisorChatCar = { make: "General", model: "guidance", year: null };
+export const GENERIC_CAR_BANNER = "General guidance, not specific to your car";
+
+export function isGenericCar(car: { make?: string | null; model?: string | null } | null | undefined) {
+  if (!car) return true;
+  const make = car.make?.trim().toLowerCase() ?? "";
+  const model = car.model?.trim().toLowerCase() ?? "";
+  if (!make || !model) return true;
+  return make === GENERIC_CAR.make.toLowerCase() && model === GENERIC_CAR.model.toLowerCase();
+}
+
 export type AdvisorChatRequest = {
   messages: ChatMessage[];
-  car: { make: string; model: string; year: number | null };
+  /** Optional: omit (or null) for general chat — the car is then identified from text or generic. */
+  car?: AdvisorChatCar | null;
+  /** Echo of a previous "identified" resolution so the UI banner stays consistent. */
+  carResolution?: CarResolution;
   /** Prior structured state from the client (chips / previous turns). */
   state?: Partial<AdvisorChatState>;
   /** Force Basic mode (e.g. Detailed edit running). */
@@ -50,10 +75,52 @@ export type AdvisorChatResponse = {
   explanationSource: "llm" | "template";
   needs: { goal: boolean; engine: boolean; budget: boolean };
   ask: string | null;
+  /** The car actually used for this turn (selected, identified from text, or generic). */
+  car: AdvisorChatCar;
+  carResolution: CarResolution;
+  /** Set for generic guidance: "General guidance, not specific to your car". */
+  carNoteBanner: string | null;
 };
 
-function carName(car: AdvisorChatRequest["car"]): string {
+function carName(car: AdvisorChatCar): string {
+  if (isGenericCar(car)) return "car";
   return `${car.year ? `${car.year} ` : ""}${car.make} ${car.model}`;
+}
+
+function resolveCar(
+  req: AdvisorChatRequest,
+  history: ChatMessage[],
+  userText: string,
+  intentCar: string | null | undefined
+): { car: AdvisorChatCar; carResolution: CarResolution; carNoteBanner: string | null } {
+  if (req.car && !isGenericCar(req.car)) {
+    return {
+      car: {
+        make: req.car.make.trim(),
+        model: req.car.model.trim(),
+        year: req.car.year ?? null,
+      },
+      carResolution: req.carResolution === "identified" ? "identified" : "selected",
+      carNoteBanner: null,
+    };
+  }
+  const fromText =
+    matchCatalogueFromText(userText) ??
+    (intentCar ? matchCatalogueFromText(intentCar) : null) ??
+    matchCatalogueFromText(
+      history
+        .filter((m) => m.role === "user")
+        .map((m) => m.content)
+        .join(" ")
+    );
+  if (fromText) {
+    return {
+      car: { make: fromText.make, model: fromText.model, year: null },
+      carResolution: "identified",
+      carNoteBanner: null,
+    };
+  }
+  return { car: { ...GENERIC_CAR }, carResolution: "generic", carNoteBanner: GENERIC_CAR_BANNER };
 }
 
 function needsAsk(
@@ -120,7 +187,7 @@ export async function runAdvisorChat(
     engine: req.state?.engine ?? null,
   };
 
-  const catalogueEngine = prefilledEngine(req.car.make, req.car.model);
+  const requestCar: AdvisorChatCar = req.car ?? GENERIC_CAR;
 
   let mode: AdvisorChatMode = "basic";
   let model: string | null = null;
@@ -132,9 +199,9 @@ export async function runAdvisorChat(
     if (probe.ok && probe.model) {
       model = probe.model;
       if (hooks.intentFn) {
-        intent = await hooks.intentFn(history, userText, carName(req.car));
+        intent = await hooks.intentFn(history, userText, isGenericCar(requestCar) ? "unknown car" : carName(requestCar));
       } else {
-        intent = await extractIntentWithLlm(history, userText, carName(req.car), {
+        intent = await extractIntentWithLlm(history, userText, isGenericCar(requestCar) ? "unknown car" : carName(requestCar), {
           ...req.ollama,
           model: probe.model,
         });
@@ -155,7 +222,7 @@ export async function runAdvisorChat(
     intent = {
       goal: merged.goal,
       budget: merged.budgetMax,
-      car: carName(req.car),
+      car: isGenericCar(requestCar) ? null : carName(requestCar),
       parts: [],
       style: null,
       question_type: merged.question_type,
@@ -163,6 +230,15 @@ export async function runAdvisorChat(
     };
     if (!intentFromLlm && !model) mode = "basic";
   }
+
+  const resolved = resolveCar(req, history, userText, intent.car);
+  const rcar = resolved.car;
+  const catalogueEngine = prefilledEngine(rcar.make, rcar.model);
+  const carFields = {
+    car: rcar,
+    carResolution: resolved.carResolution,
+    carNoteBanner: resolved.carNoteBanner,
+  };
 
   const merged = mergeIntent(intent, prior);
   // Apply prefilled engine when still unset.
@@ -188,6 +264,7 @@ export async function runAdvisorChat(
       intent,
       state,
       result: null,
+      ...carFields,
       explanation: `${summary}${ask ?? "Tell me a bit more so I can recommend parts."}`,
       explanationSource: "template",
       needs: {
@@ -200,13 +277,13 @@ export async function runAdvisorChat(
   }
 
   const result = recommend({
-    car: req.car,
+    car: rcar,
     goal: state.goal,
     engineType: state.engine,
     budgetMax: state.budgetMax,
   });
 
-  const ctx = buildExplanationContext(carName(req.car), state.goal, state.budgetMax, result);
+  const ctx = buildExplanationContext(carName(rcar), state.goal, state.budgetMax, result);
   const budgetFacts = computeBudgetFacts(result.recommendations, state.budgetMax);
   const allowed = allowedFactsFromResult(result, [state.budgetMax, budgetFacts.comboMaxTotal]);
   const allNames = UPGRADES.map((u) => u.name);
@@ -230,7 +307,7 @@ export async function runAdvisorChat(
         explanationSource = "llm";
       } else {
         explanation = templateExplanation(
-          carName(req.car),
+          carName(rcar),
           state.goal,
           state.budgetMax,
           result
@@ -240,7 +317,7 @@ export async function runAdvisorChat(
     } catch {
       mode = "basic";
       explanation = templateExplanation(
-        carName(req.car),
+        carName(rcar),
         state.goal,
         state.budgetMax,
         result
@@ -248,7 +325,7 @@ export async function runAdvisorChat(
     }
   } else {
     explanation = templateExplanation(
-      carName(req.car),
+      carName(rcar),
       state.goal,
       state.budgetMax,
       result
@@ -268,6 +345,7 @@ export async function runAdvisorChat(
     explanationSource,
     needs: { goal: false, engine: false, budget: false },
     ask: null,
+    ...carFields,
   };
 }
 

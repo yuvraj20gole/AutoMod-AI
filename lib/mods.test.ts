@@ -57,7 +57,7 @@ describe("engine-aware visibleOptions", () => {
     expect(keys).not.toContain("spoiler:gt_wing");
   });
 
-  it("Detailed lists locked spoilers, body kit, bronze wheels, CF hood, matte wrap", () => {
+  it("Detailed lists locked spoilers, body kit, and Fast parity options", () => {
     const keys = visibleCategories("detailed").flatMap((c) =>
       visibleOptions(c, "detailed").map((o) => `${c.key}:${o.key}`)
     );
@@ -70,21 +70,35 @@ describe("engine-aware visibleOptions", () => {
         "body:front_lip",
         "body:rear_diffuser",
         "wheels:bronze",
+        "wheels:gold",
         "hood:carbon_fibre",
+        "hood:matte_black",
         "wrap:matte_black",
+        "wrap:satin_blue",
+        "paint:candy_red",
+        "paint:gloss_black",
       ])
     );
-    expect(keys).not.toContain("paint:candy_red");
     expect(keys).not.toContain("spoiler:roof_spoiler");
+  });
+
+  it("marks newly ported Detailed options as experimental", () => {
+    const paint = MOD_CATEGORIES.find((c) => c.key === "paint")!;
+    expect(visibleOptions(paint, "detailed").every((o) => o.experimental)).toBe(true);
+    const wrap = MOD_CATEGORIES.find((c) => c.key === "wrap")!;
+    expect(wrap.options.find((o) => o.key === "matte_black")?.experimental).toBeFalsy();
+    expect(wrap.options.find((o) => o.key === "satin_blue")?.experimental).toBe(true);
   });
 
   it("maps Detailed options to Qwen part keys", () => {
     expect(detailedPartKey("spoiler", "gt_wing")).toBe("gt_wing");
     expect(detailedPartKey("body", "side_skirts")).toBe("side_skirts");
     expect(detailedPartKey("wheels", "bronze")).toBe("wheels_bronze");
+    expect(detailedPartKey("wheels", "gold")).toBe("wheels_gold");
     expect(detailedPartKey("body", "front_bumper_finish")).toBe("front_bumper_finish");
     expect(detailedPartKey("body", "rear_bumper_finish")).toBe("rear_bumper_finish");
-    expect(detailedPartKey("paint", "candy_red")).toBeNull();
+    expect(detailedPartKey("paint", "candy_red")).toBe("paint_candy_red");
+    expect(detailedPartKey("hood", "matte_black")).toBe("hood_matte_black");
   });
 
   it("lists provisional bumper finishes on Detailed only", () => {
@@ -107,7 +121,8 @@ describe("compare engines availability", () => {
     expect(canCompareEngines("hood", "carbon_fibre")).toBe(true);
     expect(canCompareEngines("spoiler", "gt_wing")).toBe(false);
     expect(canCompareEngines("body", "side_skirts")).toBe(false);
-    expect(canCompareEngines("paint", "candy_red")).toBe(false);
+    expect(canCompareEngines("paint", "candy_red")).toBe(true);
+    expect(canCompareEngines("wheels", "gold")).toBe(true);
   });
 
   it("maps lip spoiler ids across engines", () => {

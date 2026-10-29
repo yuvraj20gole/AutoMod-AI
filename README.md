@@ -17,6 +17,14 @@ Open [http://localhost:3000](http://localhost:3000).
 npm test            # Vitest (advisor, mods, …)
 ```
 
+## Studio engines & builds
+
+- **Fast** vs **Detailed** in Studio — Detailed options include locked aero/body
+  parts plus paint/wrap/wheels/hood (parity with Fast). New Detailed ports show
+  an **Experimental** tag; prompts live in `inference/qwen/prompts.json`.
+- **My Builds** — delete a build (confirm step); removes the row and storage
+  images for the signed-in user only (RLS).
+
 ## Upgrade Advisor (local Ollama chat)
 
 The dashboard Upgrade Advisor uses a **local 3B instruct model via Ollama** for:
@@ -43,6 +51,24 @@ If Ollama is down, slower than 20s, errors, or a **Detailed** edit job is
 `queued`/`running` for the user, the advisor silently uses **Basic mode**
 (rule parser + templated copy) and shows that in the status line. The page
 never breaks.
+
+### Standalone Advisor section
+
+The sidebar has an **Advisor** entry (`/dashboard/advisor`) between My Builds
+and Settings. Its hub (`components/advisor/AdvisorHub.tsx`) offers:
+
+1. **Chat about one of my cars** — pick a car card; the chat opens with that car.
+2. **Add a new car and chat** — opens the Add car flow, then redirects to
+   `/dashboard/advisor?carId=<new id>` (`AddCarButton` `redirectTo` prop).
+3. **Just chat in general** — no car; the advisor asks which car you drive and
+   identifies Creta/Verna/City/Corolla Altis from your text, otherwise gives
+   generic guidance ("General guidance, not specific to your car").
+
+"Change car" returns to the hub; the chat is only reset when a *different*
+car (or mode) is chosen. `/dashboard/cars/[id]/advisor` now redirects to
+`/dashboard/advisor?carId=<id>`. In the API, `car` is optional and the response
+includes `car`, `carResolution` (`selected | identified | generic`) and
+`carNoteBanner`.
 
 ### Memory safety (Detailed vs chat)
 

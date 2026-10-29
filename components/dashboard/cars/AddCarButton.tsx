@@ -10,7 +10,16 @@ import { detectPhoto } from "@/lib/detect";
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
-export default function AddCarButton() {
+export default function AddCarButton({
+  redirectTo,
+  label = "+ Add a car",
+  className = "rounded-full bg-amber-400 px-5 py-2 text-sm font-semibold text-neutral-900",
+}: {
+  /** After a successful save, navigate here instead of only refreshing. */
+  redirectTo?: (carId: string) => string;
+  label?: string;
+  className?: string;
+} = {}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [make, setMake] = useState("");
@@ -135,16 +144,20 @@ export default function AddCarButton() {
 
     setOpen(false);
     reset();
-    router.refresh();
+    if (redirectTo && newCar) {
+      router.push(redirectTo(newCar.id));
+    } else {
+      router.refresh();
+    }
   }
 
   return (
     <>
       <Button
         onClick={() => setOpen(true)}
-        className="rounded-full bg-amber-400 px-5 py-2 text-sm font-semibold text-neutral-900"
+        className={className}
       >
-        + Add a car
+        {label}
       </Button>
 
       {open && (

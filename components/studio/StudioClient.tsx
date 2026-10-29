@@ -502,6 +502,11 @@ export default function StudioClient({
                   />
                 )}
                 {o.label}
+                {engine === "detailed" && o.experimental ? (
+                  <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-800">
+                    Experimental
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>

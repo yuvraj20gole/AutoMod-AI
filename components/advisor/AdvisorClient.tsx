@@ -15,7 +15,7 @@ import {
   prefilledEngine,
   type AdvisorResult,
 } from "@/lib/advisor/recommend";
-import type { AdvisorChatState } from "@/lib/advisor/chat";
+import type { AdvisorChatCar, AdvisorChatState, CarResolution } from "@/lib/advisor/chat";
 import type { ChatMessage } from "@/lib/advisor/intent";
 
 type UiMsg = {
@@ -34,8 +34,23 @@ type MetaPayload = {
   result: AdvisorResult | null;
   explanationSource: "llm" | "template";
   needs: { goal: boolean; engine: boolean; budget: boolean };
+  car?: AdvisorChatCar;
+  carResolution?: CarResolution;
+  carNoteBanner?: string | null;
   forceBasic?: boolean;
 };
+
+export type AdvisorCarContext = {
+  id?: string;
+  make: string;
+  model: string;
+  year: number | null;
+};
+
+function describeCar(car: AdvisorCarContext | null): string | null {
+  if (!car) return null;
+  return `${car.year ? `${car.year} ` : ""}${car.make} ${car.model}`;
+}
 
 const chip =
   "rounded-full border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-800 transition-colors hover:border-amber-500 hover:bg-amber-50";
@@ -50,21 +65,41 @@ const SUGGESTIONS = [
   "And for the rear?",
 ];
 
+function openingMessage(car: AdvisorCarContext | null, generalMode: boolean): string {
+  if (car) {
+    return `Let's plan upgrades for your ${describeCar(car)}. Ask in plain language — e.g. “more power under 50k” — or tap a suggestion. Parts, prices and fitment always come from the rule engine.`;
+  }
+  if (generalMode) {
+    return "Hi! Which car do you drive? Tell me the make and model (e.g. “Hyundai Creta”) and what you want to upgrade — or just ask generally, e.g. “more power under 50k”. Parts, prices and fitment always come from the rule engine.";
+  }
+  return "Tell me what you want to upgrade — e.g. “more power under 50k”. Parts, prices and fitment always come from the rule engine.";
+}
+
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export default function AdvisorClient({
-  make,
-  model,
-  year,
+  car,
+  generalMode = false,
+  onChangeCar,
 }: {
-  make: string;
-  model: string;
-  year: number | null;
+  car: AdvisorCarContext | null;
+  generalMode?: boolean;
+  onChangeCar?: () => void;
 }) {
-  const carName = `${year ? `${year} ` : ""}${make} ${model}`;
-  const prefilled = useMemo(() => prefilledEngine(make, model), [make, model]);
+  // The car shown in the context bar. Starts from the prop and may be
+  // updated when the server identifies a catalogue car from the chat text.
+  const [activeCar, setActiveCar] = useState<AdvisorCarContext | null>(car);
+  const [carResolution, setCarResolution] = useState<CarResolution>(
+    car ? "selected" : "generic"
+  );
+  const [carNoteBanner, setCarNoteBanner] = useState<string | null>(null);
+  const carName = describeCar(activeCar) ?? "car";
+  const prefilled = useMemo(
+    () => (activeCar ? prefilledEngine(activeCar.make, activeCar.model) : null),
+    [activeCar]
+  );
 
   const [statusLabel, setStatusLabel] = useState("Basic mode");
   const [typed, setTyped] = useState("");
@@ -80,7 +115,7 @@ export default function AdvisorClient({
     {
       id: uid(),
       from: "advisor",
-      text: `Let's plan upgrades for your ${carName}. Ask in plain language — e.g. “more power under 50k” — or tap a suggestion. Parts, prices and fitment always come from the rule engine.`,
+      text: openingMessage(car, generalMode),
     },
   ]);
 
@@ -128,7 +163,10 @@ export default function AdvisorClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: historyRef.current,
-          car: { make, model, year },
+          car: activeCar
+            ? { make: activeCar.make, model: activeCar.model, year: activeCar.year }
+            : null,
+          carResolution: carResolution === "identified" ? "identified" : undefined,
           state,
         }),
       });
@@ -163,6 +201,18 @@ export default function AdvisorClient({
             meta = ev as MetaPayload;
             setStatusLabel(meta.statusLabel || "Basic mode");
             setState(meta.state);
+            if (meta.carResolution) {
+              setCarResolution(meta.carResolution);
+              setCarNoteBanner(meta.carNoteBanner ?? null);
+              const metaCar = meta.car;
+              if (meta.carResolution === "identified" && metaCar) {
+                setActiveCar((prev) =>
+                  prev && prev.make === metaCar.make && prev.model === metaCar.model
+                    ? prev
+                    : { make: metaCar.make, model: metaCar.model, year: metaCar.year }
+                );
+              }
+            }
             if (meta.state.budgetMax !== null) {
               setBudgetLabel(
                 meta.state.budgetMax === Number.POSITIVE_INFINITY
@@ -235,7 +285,9 @@ export default function AdvisorClient({
       {
         id: uid(),
         from: "advisor",
-        text: `Starting again for your ${carName}. What do you want to upgrade?`,
+        text: activeCar
+          ? `Starting again for your ${carName}. What do you want to upgrade?`
+          : "Starting again. Which car do you drive, and what do you want to upgrade?",
       },
     ]);
   }
@@ -245,6 +297,33 @@ export default function AdvisorClient({
 
   return (
     <div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-neutral-200 bg-white px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">
+            {generalMode && carResolution === "identified" ? "Car identified" : "Car"}
+          </p>
+          <p
+            className={`truncate text-sm font-semibold ${
+              activeCar ? "text-neutral-900" : "text-neutral-600"
+            }`}
+          >
+            {describeCar(activeCar) ?? "No car selected"}
+          </p>
+          {carNoteBanner && carResolution === "generic" ? (
+            <p className="mt-1 text-xs font-medium text-amber-800">{carNoteBanner}</p>
+          ) : null}
+        </div>
+        {onChangeCar ? (
+          <button
+            type="button"
+            onClick={onChangeCar}
+            className="rounded-full border border-neutral-300 px-4 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:border-amber-500 hover:bg-amber-50"
+          >
+            Change car
+          </button>
+        ) : null}
+      </div>
+
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-neutral-500">
           <span
