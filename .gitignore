@@ -39,3 +39,25 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+scripts/.venv/
+scripts/.cache/
+pipeline/.venv/
+dataset/compcars/raw/
+dataset/compcars/data/
+dataset/synthetic-source-pack/
+dataset/synthetic-source-pack.zip
+dataset/synthetic-pairs/*.jpg
+dataset/synthetic-pairs/*.png
+dataset/compcars/masks/
+
+
+inference/__pycache__/
+inference/.venv/
+
+.venv/
+.claude/
+__pycache__/
+*.pyc
+
+dataset/
+*.zip

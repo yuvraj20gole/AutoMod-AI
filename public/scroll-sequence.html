@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Scroll Sequence</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #0a0a0a; color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+
+  /* --- Intro / outro spacers so there is something to scroll into/out of --- */
+  .band {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+  }
+  .band h1 { font-size: clamp(2rem, 6vw, 4.5rem); font-weight: 650; letter-spacing: -0.02em; }
+  .band p  { margin-top: 1rem; opacity: 0.6; font-size: clamp(1rem, 2.5vw, 1.25rem); }
+
+  /* --- The pinned sequence stage --- */
+  .sequence {
+    position: relative;
+    /* Height controls how long the scrub lasts. More height = slower scrub. */
+    height: 500vh;
+    background: #0a0a0a;
+  }
+  .sequence__sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Canvas fills the stage; the JS letterboxes the frame "contain"-style inside it. */
+  #sequence-canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* --- Loading overlay (graceful fallback while frames preload) --- */
+  .loader {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    background: #0a0a0a;
+    transition: opacity 0.6s ease;
+    z-index: 2;
+  }
+  .loader[hidden] { display: none; }
+  .loader.is-done { opacity: 0; pointer-events: none; }
+  .loader__ring {
+    width: 46px; height: 46px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.15);
+    border-top-color: #f5f5f5;
+    animation: spin 0.9s linear infinite;
+  }
+  .loader__bar {
+    width: min(240px, 60vw); height: 3px; border-radius: 3px;
+    background: rgba(255,255,255,0.12); overflow: hidden;
+  }
+  .loader__bar span { display: block; height: 100%; width: 0%; background: #f5f5f5; transition: width 0.2s ease; }
+  .loader__label { font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.55; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .loader__ring { animation: none; } }
+</style>
+</head>
+<body>
+
+  <section class="band">
+    <h1>Scroll to drive</h1>
+    <p>Keep scrolling ↓</p>
+  </section>
+
+  <!-- Pinned scroll-linked image sequence -->
+  <section class="sequence" id="sequence">
+    <div class="sequence__sticky">
+      <canvas id="sequence-canvas"></canvas>
+      <div class="loader" id="loader">
+        <div class="loader__ring"></div>
+        <div class="loader__bar"><span id="loader-bar"></span></div>
+        <div class="loader__label" id="loader-label">Loading 0%</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <h1>That's the sequence</h1>
+    <p>300 frames, scrubbed to your scroll.</p>
+  </section>
+
+  <!-- GSAP + ScrollTrigger -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.13.0/ScrollTrigger.min.js"></script>
+  <script>
+  (function () {
+    "use strict";
+
+    // ------------------------------------------------------------------
+    // CONFIG — change these to match your frames.
+    // ------------------------------------------------------------------
+    var FRAME_COUNT = 300;                 // number of frames
+    var FRAME_DIR   = "frames/";           // folder holding the frames
+    var frameUrl = function (i) {
+      // ezgif-frame-001.jpg ... ezgif-frame-275.jpg  (1-indexed, zero-padded to 3)
+      var n = String(i + 1).padStart(3, "0");
+      return FRAME_DIR + "ezgif-frame-" + n + ".jpg";
+    };
+    // ------------------------------------------------------------------
+
+    var canvas = document.getElementById("sequence-canvas");
+    var ctx = canvas.getContext("2d", { alpha: false });
+    var loader = document.getElementById("loader");
+    var loaderBar = document.getElementById("loader-bar");
+    var loaderLabel = document.getElementById("loader-label");
+
+    var images = new Array(FRAME_COUNT);
+    var loadedCount = 0;
+    var state = { frame: 0 };          // the value ScrollTrigger scrubs
+    var firstFrameReady = false;
+    var dpr = 1;
+
+    // ---- High-DPI sizing so the frame stays crisp on retina / mobile ----
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2); // cap at 2 for perf
+      var w = canvas.clientWidth;
+      var h = canvas.clientHeight;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      render(state.frame);
+    }
+
+    // ---- Draw one frame, letterboxed ("contain") and centered ----
+    function render(index) {
+      var i = Math.max(0, Math.min(FRAME_COUNT - 1, Math.round(index)));
+      var img = images[i];
+      if (!img || !img.complete || !img.naturalWidth) return;
+
+      var cw = canvas.width, ch = canvas.height;
+      ctx.fillStyle = "#0a0a0a";
+      ctx.fillRect(0, 0, cw, ch);
+
+      var scale = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
+      var dw = img.naturalWidth * scale;
+      var dh = img.naturalHeight * scale;
+      var dx = (cw - dw) / 2;
+      var dy = (ch - dh) / 2;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, dx, dy, dw, dh);
+    }
+
+    // ---- Preload every frame, updating the progress UI ----
+    function preload() {
+      for (var i = 0; i < FRAME_COUNT; i++) {
+        (function (idx) {
+          var img = new Image();
+          img.decoding = "async";
+          img.onload = img.onerror = function () {
+            loadedCount++;
+            var pct = Math.round((loadedCount / FRAME_COUNT) * 100);
+            loaderBar.style.width = pct + "%";
+            loaderLabel.textContent = "Loading " + pct + "%";
+
+            // Draw the very first available frame as soon as it lands,
+            // so the canvas isn't blank behind the loader.
+            if (!firstFrameReady && images[0] && images[0].complete && images[0].naturalWidth) {
+              firstFrameReady = true;
+              render(0);
+            }
+            if (loadedCount === FRAME_COUNT) onAllLoaded();
+          };
+          img.src = frameUrl(idx);
+          images[idx] = img;
+        })(i);
+      }
+    }
+
+    // ---- Once everything is in, hide the loader and wire up ScrollTrigger ----
+    function onAllLoaded() {
+      resize();                      // re-measure now that layout is fully settled
+      loader.classList.add("is-done");
+      setTimeout(function () { loader.hidden = true; }, 700);
+
+      gsap.registerPlugin(ScrollTrigger);
+
+      gsap.to(state, {
+        frame: FRAME_COUNT - 1,
+        ease: "none",
+        snap: "frame",              // land on whole frames — no half-drawn images
+        scrollTrigger: {
+          trigger: "#sequence",
+          start: "top top",
+          end: "bottom bottom",
+          scrub: 0.5,               // smooth catch-up so scrubbing never stutters
+          pin: ".sequence__sticky", // pin the canvas while the sequence plays
+          anticipatePin: 1,
+          invalidateOnRefresh: true,
+          onRefresh: resize         // re-measure the canvas on every layout refresh
+        },
+        onUpdate: function () { render(state.frame); }
+      });
+
+      ScrollTrigger.refresh();
+    }
+
+    // ---- Boot ----
+    window.addEventListener("resize", resize, { passive: true });
+    window.addEventListener("orientationchange", function () { setTimeout(resize, 200); });
+    resize();
+    preload();
+  })();
+  </script>
+</body>
+</html>

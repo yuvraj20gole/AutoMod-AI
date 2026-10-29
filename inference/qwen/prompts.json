@@ -1,0 +1,76 @@
+{
+  "lip_spoiler": {
+    "prompt": "Add a thin gloss black lip spoiler on the trunk lid. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "seed": 7,
+    "category": "spoiler",
+    "option": "lip_spoiler"
+  },
+  "ducktail": {
+    "prompt": "Add a small ducktail spoiler on the trunk lid. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "seed": 7,
+    "category": "spoiler",
+    "option": "ducktail"
+  },
+  "gt_wing": {
+    "prompt": "Add a GT-style rear wing on two uprights on the trunk lid. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "seed": 7,
+    "category": "spoiler",
+    "option": "gt_wing"
+  },
+  "front_lip": {
+    "prompt": "Add a gloss black front splitter lip under the front bumper, slightly extended forward. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "seed": 7,
+    "category": "body",
+    "option": "front_lip"
+  },
+  "side_skirts": {
+    "prompt": "Add gloss black side skirts running along the bottom of the doors between the front and rear wheels, close to the ground. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "seed": 7,
+    "category": "body",
+    "option": "side_skirts"
+  },
+  "rear_diffuser": {
+    "prompt": "Add a black rear diffuser with vertical fins under the rear bumper. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "seed": 11,
+    "category": "body",
+    "option": "rear_diffuser"
+  },
+  "wheels_bronze": {
+    "prompt": "Change the wheels to bronze alloy wheels with the same design. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "seed": 7,
+    "category": "wheels",
+    "option": "bronze"
+  },
+  "hood_carbon_fibre": {
+    "prompt": "Replace the hood with a carbon-fibre hood. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "seed": 7,
+    "category": "hood",
+    "option": "carbon_fibre"
+  },
+  "wrap_matte_black": {
+    "prompt": "Wrap the car body in matte black vinyl. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "seed": 7,
+    "category": "wrap",
+    "option": "matte_black"
+  },
+  "front_bumper_finish": {
+    "prompt": "Add a gloss black finish to the lower front bumper valence below the main body colour, keeping the upper bumper silver. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "seed": 11,
+    "category": "body",
+    "option": "front_bumper_finish",
+    "chosen_variant": "B",
+    "fallback_variant": "B",
+    "fallback_seed": 7,
+    "note": "Locked B/seed11 from sheets_bumper; fallback B/seed7 if seed11 looks weak on a new car"
+  },
+  "rear_bumper_finish": {
+    "prompt": "Add a gloss black finish to the lower rear bumper valence below the main body colour, keeping the upper bumper silver. Keep the car, camera angle, lights, plate, wheels and background exactly the same. Leave the number plate exactly as it is, blank and unchanged.",
+    "seed": 11,
+    "category": "body",
+    "option": "rear_bumper_finish",
+    "chosen_variant": "B",
+    "fallback_variant": "B",
+    "fallback_seed": 7,
+    "note": "Locked B/seed11 from sheets_bumper; fallback B/seed7 if seed11 looks weak on a new car"
+  }
+}

@@ -1,0 +1,23 @@
+# CompCars download (Part 1)
+kagglehub>=0.3.0
+kaggle>=1.6.0
+scipy>=1.11.0
+Pillow>=10.0.0
+python-dotenv>=1.0.0
+
+# Synthetic pairs — InstructPix2Pix (Part 2; prefer Colab T4 GPU)
+diffusers>=0.30.0
+transformers>=4.40.0
+accelerate>=0.30.0
+safetensors>=0.4.0
+torch>=2.1.0
+huggingface_hub>=0.23.0
+
+# Part 3 — CompCars wheel masks (YOLO car-parts-seg)
+ultralytics>=8.3.0
+# Keep OpenCV 4.x + NumPy 1.x (torch ↔ numpy bridge breaks on NumPy 2)
+opencv-python-headless>=4.8.0,<5
+numpy>=1.24.0,<2
+# If ultralytics installs opencv-python 5.x, remove it:
+#   pip uninstall -y opencv-python
+

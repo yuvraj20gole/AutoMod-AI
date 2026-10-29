@@ -1,0 +1,152 @@
+import numpy as np
+import torch
+from PIL import Image, ImageFilter
+from transformers import AutoTokenizer, CLIPSegForImageSegmentation
+
+CLIPSEG_ID = "CIDAS/clipseg-rd64-refined"
+_MEAN = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float32)
+_STD = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32)
+
+PROMPTS = {
+    "car": "a car",
+    "glass": "car window glass",
+    "headlight": "car headlight",
+    "taillight": "car tail light",
+    "wheel": "car wheel and tyre",
+    "plate": "car number plate",
+    "grille": "car front grille",
+    "hood": "car hood",
+    "trunk": "car trunk lid and rear window",
+}
+
+THRESH = {
+    "car": 0.35,
+    "glass": 0.40,
+    "headlight": 0.40,
+    "taillight": 0.40,
+    "wheel": 0.40,
+    "plate": 0.40,
+    "grille": 0.40,
+    "hood": 0.45,
+    "trunk": 0.40,
+}
+
+NEEDS = {
+    "paint": ["car", "glass", "headlight", "taillight", "wheel", "plate", "grille"],
+    "wrap": ["car", "glass", "headlight", "taillight", "wheel", "plate", "grille"],
+    "wheels": ["wheel"],
+    "hood": ["car", "hood"],
+    "spoiler": ["car", "trunk"],
+}
+
+
+class Segmenter:
+    def __init__(self):
+        self.tok = AutoTokenizer.from_pretrained(CLIPSEG_ID)
+        self.model = CLIPSegForImageSegmentation.from_pretrained(CLIPSEG_ID).eval()
+
+    @torch.no_grad()
+    def probs(self, img, keys):
+        w, h = img.size
+        small = img.convert("RGB").resize((352, 352), Image.BICUBIC)
+        arr = (np.asarray(small, dtype=np.float32) / 255.0 - _MEAN) / _STD
+        pv = torch.from_numpy(arr.transpose(2, 0, 1)).unsqueeze(0).repeat(len(keys), 1, 1, 1)
+        enc = self.tok([PROMPTS[k] for k in keys], padding=True, return_tensors="pt")
+        out = self.model(
+            input_ids=enc["input_ids"],
+            attention_mask=enc["attention_mask"],
+            pixel_values=pv,
+        )
+        lg = out.logits
+        if lg.dim() == 2:
+            lg = lg.unsqueeze(0)
+        p = torch.sigmoid(lg).cpu().numpy()
+        res = {}
+        for k, m in zip(keys, p):
+            im = Image.fromarray((m * 255).astype(np.uint8)).resize((w, h), Image.BICUBIC)
+            res[k] = np.asarray(im, dtype=np.float32) / 255.0
+        return res
+
+
+def _bin(p, t):
+    if p.max() < t:
+        return np.zeros_like(p, dtype=bool)
+    return p >= t
+
+
+def _filter(mask, flt):
+    im = Image.fromarray((mask.astype(np.uint8)) * 255)
+    return np.asarray(im.filter(flt)) > 127
+
+
+def _dilate(mask, px):
+    if px <= 0:
+        return mask
+    return _filter(mask, ImageFilter.MaxFilter(2 * px + 1))
+
+
+def _erode(mask, px):
+    if px <= 0:
+        return mask
+    return _filter(mask, ImageFilter.MinFilter(2 * px + 1))
+
+
+def _clean(mask, px=2):
+    return _dilate(_erode(mask, px), px)
+
+
+def build_mask(seg, category, img):
+    keys = NEEDS[category]
+    P = seg.probs(img, keys)
+    B = {k: _bin(P[k], THRESH[k]) for k in keys}
+    h, w = B[keys[0]].shape
+    px = max(1, round(max(w, h) / 160))
+
+    if category in ("paint", "wrap"):
+        car = _clean(B["car"], px)
+        exclude = np.zeros_like(car)
+        for k in ("glass", "headlight", "taillight", "wheel", "plate", "grille"):
+            exclude |= B[k]
+        exclude = _dilate(exclude, px)
+        return car & ~exclude
+
+    if category == "wheels":
+        return _dilate(_clean(B["wheel"], px), px * 2)
+
+    if category == "hood":
+        car = _dilate(_clean(B["car"], px), px)
+        return _clean(B["hood"], px) & car
+
+    if category == "spoiler":
+        car = _clean(B["car"], px)
+        trunk = _dilate(_clean(B["trunk"], px), px * 8)
+        ys, xs = np.where(car)
+        band = np.zeros_like(car)
+        if len(ys):
+            y0, y1 = ys.min(), ys.max()
+            x0, x1 = xs.min(), xs.max()
+            bh = y1 - y0
+            band[max(0, y0 - round(bh * 0.15)): y0 + round(bh * 0.30), x0:x1] = True
+        return trunk | band
+
+    raise ValueError(category)
+
+
+def soft(mask, radius):
+    im = Image.fromarray((mask.astype(np.uint8)) * 255)
+    return im.filter(ImageFilter.GaussianBlur(radius))
+
+
+def composite(orig_full, edited_full, mask, blur_frac=0.004):
+    W, H = orig_full.size
+    m = soft(mask, 1).resize((W, H), Image.BICUBIC)
+    m = m.filter(ImageFilter.GaussianBlur(max(1.0, W * blur_frac)))
+    return Image.composite(edited_full, orig_full, m)
+
+
+def overlay(img, mask):
+    base = np.asarray(img.convert("RGB"), dtype=np.float32)
+    tint = np.zeros_like(base)
+    tint[..., 0] = 255
+    m = mask[..., None].astype(np.float32) * 0.55
+    return Image.fromarray((base * (1 - m) + tint * m).astype(np.uint8))

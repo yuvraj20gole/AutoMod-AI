@@ -1,0 +1,8 @@
+praw>=8.0.0
+ImageHash>=4.3.0
+Pillow>=10.0.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+python-dotenv>=1.0.0
+anthropic>=0.20.0
+
