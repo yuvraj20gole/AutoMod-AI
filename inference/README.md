@@ -14,6 +14,10 @@ Only one edit runs at a time across both engines (`job_queue.engine_lock`). Deta
 loads the model, edits, post-processes (LAB colour-match + edit-region blend),
 writes the PNG, and **exits** so RAM is freed. Extra jobs queue.
 
+**Advisor chat (Ollama 3B)** must not fight Detailed for memory: chat uses
+`keep_alive=60s`, and while a Detailed job is queued/running the Next.js
+advisor API forces **Basic mode** (rule engine only). See root `README.md`.
+
 ### Enabling Detailed
 
 1. Install mflux: `uv tool install mflux` (Apple Silicon).

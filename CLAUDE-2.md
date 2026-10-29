@@ -261,9 +261,21 @@ pricing cards.
   `GET /api/jobs/[id]` every 3s; on done, upload + `builds` row with
   `engine`. My Builds shows a Fast/Detailed badge. Studio progress shows
   queued/running + elapsed timer (~4 min note).
-- **Multi-photo + angle detection, identification chat, Upgrade Advisor** —
-  unchanged from earlier; Advisor is rule-based (`lib/advisor/`), Vitest
-  covered (`npm test`).
+- **Multi-photo + angle detection, identification chat** — unchanged.
+- **Upgrade Advisor (local Ollama chat + rule engine):** Chat UI in
+  `components/advisor/AdvisorClient.tsx` talks to `POST /api/advisor/chat`.
+  A local 3B instruct model via Ollama (`OLLAMA_URL`, default
+  `http://localhost:11434`; `OLLAMA_MODEL` prefers `qwen2.5:3b-instruct`)
+  does **only** (1) intent JSON extraction and (2) a short explanation of
+  the **rule engine** result. Facts (parts, ₹ ranges, fitment, installer
+  Maps searches) stay in `lib/advisor/data.ts` + `recommend.ts`. Invalid
+  intent JSON → one retry → `parse.ts` fallback. Explanation post-check
+  rejects invented prices/parts/brands → templated copy. If Ollama is down,
+  >20s, errors, or the user has a Detailed `edit_jobs` row in
+  `queued`/`running`, the UI shows **Basic mode** and never breaks.
+  Ollama `keep_alive` is **60s** so chat does not pin VRAM/RAM against
+  Detailed. Pull if missing: `ollama pull qwen2.5:3b-instruct`. Vitest
+  covers intent/post-check/fallback with a mocked LLM (`npm test`).
 - **How to start:** `npm run start:all` (`scripts/start.sh`) — engine
   `:8001` + `npm run dev`, waits for `/health` ready, prints whether
   Detailed is available. `scripts/stop.sh` frees 8001/3000 and Qwen

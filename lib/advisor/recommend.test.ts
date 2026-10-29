@@ -71,6 +71,14 @@ describe("recommend() — Corolla Altis, More power, ₹30,000–₹1,00,000", (
     expect(tune?.buildChecks.join(" ")).toMatch(/naturally aspirated rule/i);
   });
 
+  it("surfaces the car-specific note once on the result, not on every card", () => {
+    expect(result.carNote).toMatch(/Altis was discontinued in 2020/i);
+    for (const r of result.recommendations) {
+      expect(r.buildChecks.join(" ")).not.toMatch(/Altis was discontinued in 2020/i);
+      expect(r.buildChecks.join(" ")).not.toMatch(/^For your Toyota Corolla Altis:/);
+    }
+  });
+
   it("includes warranty, insurance and RTO risks on the NA tune", () => {
     const tune = result.recommendations.find((r) => r.id === "na-ecu-tune");
     const risks = tune?.risks.join(" ") ?? "";

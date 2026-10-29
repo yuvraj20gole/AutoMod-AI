@@ -40,6 +40,11 @@ export type AdvisorResult = {
   engineSource: "catalogue" | "user" | "assumption";
   /** Whole-advisor warnings, e.g. age-related checks before power mods. */
   warnings: string[];
+  /**
+   * Car-specific note shown once under the recommendations heading —
+   * not repeated inside every card's buildChecks.
+   */
+  carNote: string | null;
   recommendations: Recommendation[];
 };
 
@@ -110,14 +115,6 @@ function buildChecks(
   }
 ): string[] {
   const checks: string[] = [option.buildCheck];
-
-  if (ctx.catalogue) {
-    checks.push(`For your ${ctx.catalogue.make} ${ctx.catalogue.model}: ${ctx.catalogue.buildNote}`);
-  } else {
-    checks.push(
-      `We don't have curated notes for the ${ctx.car.make} ${ctx.car.model}, so this is generic ${ctx.bodyType} / ${ENGINE_LABEL[ctx.engineType]} guidance — fitment must be confirmed for your exact variant before ordering.`
-    );
-  }
 
   // Rule: naturally aspirated petrol only gains mildly from intake/exhaust.
   if (
@@ -213,7 +210,19 @@ export function recommend(input: {
         b.valueScore - a.valueScore || a.costMin - b.costMin || a.name.localeCompare(b.name)
     );
 
-  return { knownCar: catalogue, bodyType, engineType, engineSource, warnings, recommendations };
+  const carNote = catalogue
+    ? `For your ${catalogue.make} ${catalogue.model}: ${catalogue.buildNote}`
+    : `We don't have curated notes for the ${car.make} ${car.model}, so this is generic ${bodyType} / ${ENGINE_LABEL[engineType]} guidance — fitment must be confirmed for your exact variant before ordering.`;
+
+  return {
+    knownCar: catalogue,
+    bodyType,
+    engineType,
+    engineSource,
+    warnings,
+    carNote,
+    recommendations,
+  };
 }
 
 export function formatINR(n: number): string {

@@ -26,7 +26,7 @@ export default async function AdvisorPage({ params }: { params: Promise<{ id: st
     <div>
       <DashboardPageHeader
         title={`Upgrade advisor: ${carName}`}
-        description="Rule-based upgrade guidance from curated data — answer three questions and get parts that fit your car and budget."
+        description="Local chat (Ollama) for intent and explanations — parts, prices and fitment always come from the curated rule engine."
         action={
           <div className="flex flex-wrap gap-2">
             <Link

@@ -7,26 +7,52 @@ import {
   COLOUR_CHANGE_NOTE,
   ENGINE_TYPES,
   GOALS,
-  type EngineType,
-  type Goal,
 } from "@/lib/advisor/data";
-import { parseRequest } from "@/lib/advisor/parse";
 import {
   buildInstallerLink,
-  findCatalogueCar,
   formatCostRange,
   formatINR,
   prefilledEngine,
-  recommend,
+  type AdvisorResult,
 } from "@/lib/advisor/recommend";
+import type { AdvisorChatState } from "@/lib/advisor/chat";
+import type { ChatMessage } from "@/lib/advisor/intent";
 
-type Msg = { from: "advisor" | "user"; text: string };
-type Step = "goal" | "engine" | "budget" | "results";
+type UiMsg = {
+  id: string;
+  from: "advisor" | "user";
+  text: string;
+  streaming?: boolean;
+};
+
+type MetaPayload = {
+  type: "meta";
+  mode: "local" | "basic";
+  model: string | null;
+  statusLabel: string;
+  state: AdvisorChatState;
+  result: AdvisorResult | null;
+  explanationSource: "llm" | "template";
+  needs: { goal: boolean; engine: boolean; budget: boolean };
+  forceBasic?: boolean;
+};
 
 const chip =
   "rounded-full border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-800 transition-colors hover:border-amber-500 hover:bg-amber-50";
 const chipActive =
   "rounded-full border border-amber-500 bg-amber-50 px-3 py-1.5 text-xs font-medium text-neutral-900";
+
+const SUGGESTIONS = [
+  "More power under 50k",
+  "Louder exhaust under 30 thousand",
+  "Better brakes for 1 lakh",
+  "What about cheaper?",
+  "And for the rear?",
+];
+
+function uid() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 export default function AdvisorClient({
   make,
@@ -38,214 +64,210 @@ export default function AdvisorClient({
   year: number | null;
 }) {
   const carName = `${year ? `${year} ` : ""}${make} ${model}`;
-  const catalogue = useMemo(() => findCatalogueCar(make, model), [make, model]);
   const prefilled = useMemo(() => prefilledEngine(make, model), [make, model]);
 
-  const [step, setStep] = useState<Step>("goal");
-  const [goal, setGoal] = useState<Goal | null>(null);
-  const [engine, setEngine] = useState<EngineType | null>(null);
-  const [budgetMax, setBudgetMax] = useState<number | null>(null);
-  const [budgetLabel, setBudgetLabel] = useState<string>("");
-  const [custom, setCustom] = useState("");
+  const [statusLabel, setStatusLabel] = useState("Basic mode");
   const [typed, setTyped] = useState("");
-  const [log, setLog] = useState<Msg[]>([
+  const [busy, setBusy] = useState(false);
+  const [state, setState] = useState<AdvisorChatState>({
+    goal: null,
+    budgetMax: null,
+    engine: prefilled,
+  });
+  const [result, setResult] = useState<AdvisorResult | null>(null);
+  const [budgetLabel, setBudgetLabel] = useState("");
+  const [log, setLog] = useState<UiMsg[]>([
     {
+      id: uid(),
       from: "advisor",
-      text: `Let's plan upgrades for your ${carName}. I'll ask one question at a time and only suggest parts whose full cost fits your budget. What do you want to upgrade?`,
+      text: `Let's plan upgrades for your ${carName}. Ask in plain language — e.g. “more power under 50k” — or tap a suggestion. Parts, prices and fitment always come from the rule engine.`,
     },
   ]);
 
-  function say(from: Msg["from"], text: string) {
-    setLog((l) => [...l, { from, text }]);
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const historyRef = useRef<ChatMessage[]>([]);
+
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [log, busy]);
+
+  useEffect(() => {
+    if (!result) return;
+    const t = setTimeout(
+      () => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      80
+    );
+    return () => clearTimeout(t);
+  }, [result]);
+
+  function pushHistory(role: "user" | "assistant", content: string) {
+    historyRef.current = [...historyRef.current, { role, content }].slice(-6);
+  }
+
+  async function sendChat(userText: string) {
+    const text = userText.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    setTyped("");
+    setResult(null);
+
+    const userMsg: UiMsg = { id: uid(), from: "user", text };
+    const assistantId = uid();
+    setLog((l) => [
+      ...l,
+      userMsg,
+      { id: assistantId, from: "advisor", text: "", streaming: true },
+    ]);
+    pushHistory("user", text);
+
+    try {
+      const res = await fetch("/api/advisor/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: historyRef.current,
+          car: { make, model, year },
+          state,
+        }),
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error(`Chat failed (${res.status})`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let assembled = "";
+      let meta: MetaPayload | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() ?? "";
+        for (const block of parts) {
+          const line = block.trim();
+          if (!line.startsWith("data:")) continue;
+          const json = line.replace(/^data:\s*/, "");
+          let ev: { type: string; t?: string; message?: string } & Partial<MetaPayload>;
+          try {
+            ev = JSON.parse(json);
+          } catch {
+            continue;
+          }
+          if (ev.type === "meta") {
+            meta = ev as MetaPayload;
+            setStatusLabel(meta.statusLabel || "Basic mode");
+            setState(meta.state);
+            if (meta.state.budgetMax !== null) {
+              setBudgetLabel(
+                meta.state.budgetMax === Number.POSITIVE_INFINITY
+                  ? "Open budget"
+                  : `Up to ${formatINR(meta.state.budgetMax)}`
+              );
+            }
+            if (meta.result) setResult(meta.result);
+          } else if (ev.type === "token" && typeof ev.t === "string") {
+            assembled += ev.t;
+            const snapshot = assembled;
+            setLog((l) =>
+              l.map((m) =>
+                m.id === assistantId ? { ...m, text: snapshot, streaming: true } : m
+              )
+            );
+          } else if (ev.type === "error") {
+            throw new Error(ev.message || "Advisor error");
+          }
+        }
+      }
+
+      const finalText =
+        assembled.trim() ||
+        "I couldn't reach the local model, so here's the rule-based answer instead. Try again in a moment.";
+      setLog((l) =>
+        l.map((m) =>
+          m.id === assistantId ? { ...m, text: finalText, streaming: false } : m
+        )
+      );
+      pushHistory("assistant", finalText);
+      if (meta?.result) setResult(meta.result);
+    } catch {
+      const fallback =
+        "Something went wrong talking to the advisor. You're in Basic mode — try a shorter question like “more power under 50k”.";
+      setStatusLabel("Basic mode");
+      setLog((l) =>
+        l.map((m) =>
+          m.id === assistantId ? { ...m, text: fallback, streaming: false } : m
+        )
+      );
+      pushHistory("assistant", fallback);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function pickGoal(g: (typeof GOALS)[number]) {
-    setGoal(g.key);
-    say("user", g.label);
-    // Free text may have answered engine/budget already — skip those.
-    if (engine && budgetMax !== null) {
-      say(
-        "advisor",
-        "Here are the upgrades that fit — best value first. Costs are broad curated ranges (parts + typical fitting), not live prices, and each card says who should fit it and where to search for it."
-      );
-      setStep("results");
-      return;
-    }
-    if (engine) {
-      say("advisor", "What is your budget? I'll only show options whose whole cost range fits inside it.");
-      setStep("budget");
-      return;
-    }
-    if (catalogue && prefilled) {
-      say(
-        "advisor",
-        `Got it. From our catalogue, the ${catalogue.make} ${catalogue.model} usually has a ${ENGINE_TYPES.find((e) => e.key === prefilled)?.label.toLowerCase()} engine — I've pre-filled that. ${catalogue.engineNote} Is that right, or is yours different?`
-      );
-    } else {
-      say(
-        "advisor",
-        `Got it. We don't have the ${make} ${model} in our catalogue yet, so I need this from you: what engine does it have?`
-      );
-    }
-    setStep("engine");
+    void sendChat(g.label);
   }
 
   function pickEngine(e: (typeof ENGINE_TYPES)[number]) {
-    setEngine(e.key);
-    say("user", e.label);
-    // Free text may have answered the budget already — skip asking again.
-    if (budgetMax !== null) {
-      say(
-        "advisor",
-        "Here are the upgrades that fit — best value first. Costs are broad curated ranges (parts + typical fitting), not live prices, and each card says who should fit it and where to search for it."
-      );
-      setStep("results");
-      return;
-    }
-    say("advisor", "What is your budget? I'll only show options whose whole cost range fits inside it.");
-    setStep("budget");
+    setState((s) => ({ ...s, engine: e.key }));
+    void sendChat(`My engine is ${e.label}`);
   }
 
   function pickBudget(max: number, label: string) {
-    setBudgetMax(max);
+    setState((s) => ({ ...s, budgetMax: max }));
     setBudgetLabel(label);
-    say("user", label);
-    say(
-      "advisor",
-      "Here are the upgrades that fit — best value first. Costs are broad curated ranges (parts + typical fitting), not live prices, and each card says who should fit it and where to search for it."
-    );
-    setStep("results");
-  }
-
-  /**
-   * Free-text path. The sentence is shown as the user's bubble, the
-   * parser fills in whatever it answers, and we then ask only for the
-   * first thing still missing — using the same steps/buttons as the
-   * button flow. Nothing understood → friendly list of known goals.
-   */
-  function handleTyped() {
-    const text = typed.trim();
-    if (!text) return;
-    setTyped("");
-    say("user", text);
-    const parsed = parseRequest(text);
-
-    if (!parsed.goal && parsed.budgetMax === undefined && !parsed.engine) {
-      say(
-        "advisor",
-        "I didn't quite catch that — no problem. I can help with: More power, Exhaust, Suspension and handling, Brakes, Wheels and tyres, or Looks and lighting. Pick one below, or type something like 'more power under 50k'."
-      );
-      setStep("goal");
-      return;
-    }
-
-    const g = parsed.goal ?? goal;
-    const e = parsed.engine ?? engine;
-    const b = parsed.budgetMax ?? budgetMax;
-    if (parsed.goal) setGoal(parsed.goal);
-    if (parsed.engine) setEngine(parsed.engine);
-    if (parsed.budgetMax !== undefined) {
-      setBudgetMax(parsed.budgetMax);
-      setBudgetLabel(`Up to ${formatINR(parsed.budgetMax)}`);
-    }
-
-    const bits: string[] = [];
-    if (parsed.goal) bits.push(GOALS.find((x) => x.key === parsed.goal)?.label ?? parsed.goal);
-    if (parsed.engine)
-      bits.push(ENGINE_TYPES.find((x) => x.key === parsed.engine)?.label ?? parsed.engine);
-    if (parsed.budgetMax !== undefined) bits.push(`budget up to ${formatINR(parsed.budgetMax)}`);
-    const summary = bits.length > 0 ? `Got it — ${bits.join(", ")}.` : "Got it.";
-
-    if (!g) {
-      say("advisor", `${summary} What do you want to upgrade?`);
-      setStep("goal");
-    } else if (!e) {
-      if (catalogue && prefilled) {
-        say(
-          "advisor",
-          `${summary} From our catalogue, the ${catalogue.make} ${catalogue.model} usually has a ${ENGINE_TYPES.find((x) => x.key === prefilled)?.label.toLowerCase()} engine — I've pre-filled that. ${catalogue.engineNote} Is that right, or is yours different?`
-        );
-      } else {
-        say(
-          "advisor",
-          `${summary} We don't have the ${make} ${model} in our catalogue yet, so I need this from you: what engine does it have?`
-        );
-      }
-      setStep("engine");
-    } else if (b === null || b === undefined) {
-      say(
-        "advisor",
-        `${summary} What is your budget? I'll only show options whose whole cost range fits inside it.`
-      );
-      setStep("budget");
-    } else {
-      say(
-        "advisor",
-        `${summary} Here are the upgrades that fit — best value first. Costs are broad curated ranges (parts + typical fitting), not live prices, and each card says who should fit it and where to search for it.`
-      );
-      setStep("results");
-    }
+    void sendChat(`Budget: ${label}`);
   }
 
   function restart() {
-    setStep("goal");
-    setGoal(null);
-    setEngine(null);
-    setBudgetMax(null);
+    historyRef.current = [];
+    setState({ goal: null, budgetMax: null, engine: prefilled });
+    setResult(null);
     setBudgetLabel("");
-    setCustom("");
     setTyped("");
     setLog([
       {
+        id: uid(),
         from: "advisor",
         text: `Starting again for your ${carName}. What do you want to upgrade?`,
       },
     ]);
   }
 
-  const result = useMemo(() => {
-    if (!goal || budgetMax === null) return null;
-    return recommend({
-      car: { make, model, year },
-      goal,
-      engineType: engine,
-      budgetMax,
-    });
-  }, [goal, engine, budgetMax, make, model, year]);
-
-  const customAmount = Number(custom.replace(/[^0-9]/g, ""));
-  const customValid = Number.isFinite(customAmount) && customAmount >= 500;
-
-  const messagesRef = useRef<HTMLDivElement>(null);
-  const resultsRef = useRef<HTMLDivElement>(null);
-
-  // Keep the newest chat message in view inside the message scroller.
-  useEffect(() => {
-    const el = messagesRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [log, step]);
-
-  // When recommendations appear, bring the start of the block into view.
-  useEffect(() => {
-    if (step !== "results") return;
-    const t = setTimeout(
-      () => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-      80
-    );
-    return () => clearTimeout(t);
-  }, [step, result]);
+  const showEngineChips = state.goal && !state.engine;
+  const showBudgetChips = state.goal && state.engine && state.budgetMax === null;
 
   return (
     <div>
-      {/* Chat */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-neutral-500">
+          <span
+            className={`inline-block h-1.5 w-1.5 rounded-full ${
+              statusLabel.startsWith("Local") ? "bg-emerald-500" : "bg-neutral-400"
+            }`}
+            aria-hidden
+          />{" "}
+          <span className="ml-1 font-medium text-neutral-700">{statusLabel}</span>
+          {statusLabel === "Basic mode" ? (
+            <span className="text-neutral-500"> — rule engine only (Ollama offline, slow, or Detailed edit running)</span>
+          ) : null}
+        </p>
+      </div>
+
       <div className="flex flex-col rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
         <div
           ref={messagesRef}
           data-lenis-prevent
           className="min-h-0 max-h-[42dvh] space-y-2 overflow-y-auto overscroll-contain pr-1"
         >
-          {log.map((m, i) => (
-            <div key={i} className={`flex ${m.from === "user" ? "justify-end" : "justify-start"}`}>
+          {log.map((m) => (
+            <div key={m.id} className={`flex ${m.from === "user" ? "justify-end" : "justify-start"}`}>
               <p
                 className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                   m.from === "user"
@@ -254,25 +276,42 @@ export default function AdvisorClient({
                 }`}
               >
                 {m.text}
+                {m.streaming ? (
+                  <span className="ml-1 inline-block h-3 w-1.5 animate-pulse bg-amber-500 align-middle" />
+                ) : null}
               </p>
             </div>
           ))}
+          {busy && log[log.length - 1]?.from === "user" ? (
+            <div className="flex justify-start">
+              <p className="rounded-2xl bg-neutral-50 px-3.5 py-2.5 text-xs text-neutral-500 ring-1 ring-neutral-200/60">
+                Thinking…
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          {step === "goal" &&
+          {!state.goal &&
             GOALS.map((g) => (
-              <button key={g.key} type="button" className={chip} onClick={() => pickGoal(g)}>
+              <button
+                key={g.key}
+                type="button"
+                className={chip}
+                disabled={busy}
+                onClick={() => pickGoal(g)}
+              >
                 {g.label}
               </button>
             ))}
 
-          {step === "engine" &&
+          {showEngineChips &&
             ENGINE_TYPES.map((e) => (
               <button
                 key={e.key}
                 type="button"
                 className={prefilled === e.key ? chipActive : chip}
+                disabled={busy}
                 onClick={() => pickEngine(e)}
               >
                 {e.label}
@@ -280,65 +319,64 @@ export default function AdvisorClient({
               </button>
             ))}
 
-          {step === "budget" && (
+          {showBudgetChips && (
             <>
               {BUDGET_PRESETS.map((b) => (
                 <button
                   key={b.id}
                   type="button"
                   className={chip}
+                  disabled={busy}
                   onClick={() => pickBudget(b.max, b.label)}
                 >
                   {b.label}
                 </button>
               ))}
-              <span className="flex items-center gap-2">
-                <span className="text-xs text-neutral-500">or custom ₹</span>
-                <input
-                  value={custom}
-                  onChange={(e) => setCustom(e.target.value)}
-                  inputMode="numeric"
-                  placeholder="50,000"
-                  className="w-28 rounded-full border border-neutral-300 px-3 py-1.5 text-xs text-neutral-800 outline-none focus:border-amber-500"
-                />
-                <button
-                  type="button"
-                  disabled={!customValid}
-                  className="rounded-full bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-40"
-                  onClick={() => pickBudget(customAmount, `Custom: up to ${formatINR(customAmount)}`)}
-                >
-                  Use amount
-                </button>
-              </span>
             </>
           )}
 
-          {step === "results" && (
+          {SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={chip}
+              disabled={busy}
+              onClick={() => void sendChat(s)}
+            >
+              {s}
+            </button>
+          ))}
+
+          {result && (
             <button
               type="button"
               onClick={restart}
+              disabled={busy}
               className="rounded-full border border-neutral-300 px-4 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:border-neutral-500"
             >
               Start again
             </button>
           )}
         </div>
-
       </div>
 
-      {/* Results */}
-      {step === "results" && result && (
+      {result && state.goal && state.budgetMax !== null && (
         <div ref={resultsRef} className="mt-6 scroll-mt-4">
           <h2 className="font-display text-lg font-semibold tracking-tight text-neutral-900">
-            Recommendations for {budgetLabel.toLowerCase()}
+            Recommendations{budgetLabel ? ` for ${budgetLabel.toLowerCase()}` : ""}
           </h2>
           <p className="mt-1 text-sm text-neutral-600">
-            {GOALS.find((g) => g.key === goal)?.label} ·{" "}
+            {GOALS.find((g) => g.key === state.goal)?.label} ·{" "}
             {ENGINE_TYPES.find((e) => e.key === result.engineType)?.label}
             {result.knownCar
               ? ` · curated entry for the ${result.knownCar.make} ${result.knownCar.model}`
               : " · generic fallback for this body/engine type"}
           </p>
+          {result.carNote && (
+            <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+              {result.carNote}
+            </p>
+          )}
 
           {result.warnings.map((w) => (
             <p
@@ -468,25 +506,24 @@ export default function AdvisorClient({
         </div>
       )}
 
-      {/* Free-text input — sticky so it stays reachable while scrolling
-          through the recommendations. */}
       <form
         className="sticky bottom-3 z-20 mt-4 flex items-center gap-2 rounded-2xl border border-neutral-200 bg-white p-3 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.35)]"
         onSubmit={(ev) => {
           ev.preventDefault();
-          handleTyped();
+          void sendChat(typed);
         }}
       >
         <input
           value={typed}
           onChange={(e) => setTyped(e.target.value)}
-          placeholder="Type what you want, e.g. 'I want more horsepower under 50k'"
-          aria-label="Type what you want"
-          className="min-w-0 flex-1 rounded-full border border-neutral-300 px-3.5 py-2 text-sm text-neutral-800 outline-none focus:border-amber-500"
+          placeholder="Ask anything, e.g. 'I want more horsepower under 50k'"
+          aria-label="Ask the upgrade advisor"
+          disabled={busy}
+          className="min-w-0 flex-1 rounded-full border border-neutral-300 px-3.5 py-2 text-sm text-neutral-800 outline-none focus:border-amber-500 disabled:opacity-60"
         />
         <button
           type="submit"
-          disabled={!typed.trim()}
+          disabled={!typed.trim() || busy}
           className="rounded-full bg-neutral-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-40"
         >
           Send
