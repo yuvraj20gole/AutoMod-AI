@@ -51,34 +51,18 @@ function UploadVisual() {
 }
 
 function PickVisual() {
-  const edits = ["Paint", "Wrap", "Wheels", "Hood", "Spoiler"];
   return (
     <MockupFrame>
-      {/* TODO: replace this styled card with a real Studio screenshot
-          (see docs/screenshots/README.md, shot 09–13). */}
-      <div className="flex w-full flex-col items-start gap-4">
-        <p className="text-sm font-medium text-neutral-500">
-          Five edits, rendered only on the panels they belong on:
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {edits.map((edit, i) => (
-            <motion.span
-              key={edit}
-              className="rounded-full border border-amber-400/40 bg-amber-50 px-3.5 py-1.5 text-sm font-medium text-amber-700"
-              initial={{ opacity: 0, y: 8 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.6 }}
-              transition={{ duration: 0.4, delay: 0.2 + i * 0.12 }}
-            >
-              {edit}
-            </motion.span>
-          ))}
-        </div>
-        <p className="text-sm leading-relaxed text-neutral-500">
-          Pick one, choose a finish, and the preview is generated on{" "}
-          <span className="font-medium text-neutral-700">your</span> car —
-          windows, wheels, lights and background stay untouched.
-        </p>
+      <div className="relative h-full w-full overflow-hidden rounded-xl bg-neutral-100">
+        <Image
+          src="/landing/how-studio.webp"
+          alt="AutoMod AI Studio with Detailed engine selected, choosing a lip spoiler on a 2018 Toyota Corolla"
+          width={1120}
+          height={700}
+          sizes="(max-width: 768px) 100vw, 560px"
+          className="h-full w-full object-cover object-top"
+          quality={90}
+        />
       </div>
     </MockupFrame>
   );
@@ -117,33 +101,16 @@ function SeeItVisual() {
 function AdviceVisual() {
   return (
     <MockupFrame>
-      {/* TODO: replace this styled card with a real Upgrade Advisor
-          screenshot (see docs/screenshots/README.md, shot 17). */}
-      <div className="flex w-full flex-col gap-2.5">
-        <div className="flex justify-end">
-          <p className="max-w-[85%] rounded-2xl bg-neutral-900 px-3.5 py-2.5 text-sm leading-relaxed text-white">
-            I want more horsepower under 50k
-          </p>
-        </div>
-        <div className="flex justify-start">
-          <p className="max-w-[85%] rounded-2xl bg-neutral-50 px-3.5 py-2.5 text-sm leading-relaxed text-neutral-800 shadow-sm ring-1 ring-neutral-200/60">
-            Got it — more power, up to ₹50,000. For your Corolla Altis
-            I&apos;d start with a performance panel filter (₹3,500–₹8,000),
-            iridium plugs (₹4,000–₹9,000) and a cold-air intake
-            (₹9,000–₹18,000) — mild gains on a naturally aspirated engine,
-            so we set expectations honestly.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2 pt-1">
-          {["More power", "Under ₹50,000"].map((chip) => (
-            <span
-              key={chip}
-              className="rounded-full border border-amber-500 bg-amber-50 px-3 py-1 text-xs font-medium text-neutral-900"
-            >
-              {chip}
-            </span>
-          ))}
-        </div>
+      <div className="relative h-full w-full overflow-hidden rounded-xl bg-neutral-100">
+        <Image
+          src="/landing/how-advisor.webp"
+          alt="Upgrade Advisor chat recommending parts for a 2018 Toyota Corolla under a ₹50,000 budget"
+          width={1400}
+          height={875}
+          sizes="(max-width: 768px) 100vw, 560px"
+          className="h-full w-full object-cover object-top"
+          quality={90}
+        />
       </div>
     </MockupFrame>
   );
@@ -204,10 +171,9 @@ const STEPS = [
 ];
 
 /**
- * The live product flow, shown with real output: the Corolla photos and
- * renders come from the inference engine (public/landing/), step 3 uses
- * the Studio's CompareSlider, and the step 2 / step 4 cards are styled
- * stand-ins until real screenshots replace them (TODOs inline).
+ * The live product flow with real output: Corolla photos/renders in
+ * public/landing/, Studio and Advisor screenshots for steps 2 and 4, and
+ * the Studio CompareSlider for step 3.
  */
 export default function HowItWorks() {
   return (
