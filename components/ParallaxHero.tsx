@@ -289,8 +289,23 @@ export default function ParallaxHero() {
             <span className="block text-neutral-50">
               <TextEffect inView={false}>Build it in</TextEffect>
             </span>
-            <span className="block bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent">
-              <TextEffect inView={false}>your head.</TextEffect>
+            {/* Dual layer: solid amber always paints (WebKit fallback); gradient
+                clip sits on the same glyphs via per="line". Nested word spans
+                + filter/blur under bg-clip-text made Safari paint nothing. */}
+            <span className="hero-amber-line relative block">
+              <span
+                className="pointer-events-none absolute inset-0 select-none text-amber-400"
+                aria-hidden
+              >
+                your head.
+              </span>
+              <TextEffect
+                inView={false}
+                per="line"
+                className="relative bg-gradient-to-r from-amber-400 to-orange-500 bg-clip-text text-transparent"
+              >
+                your head.
+              </TextEffect>
             </span>
           </h1>
 
