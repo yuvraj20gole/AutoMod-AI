@@ -9,7 +9,8 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org/)
 [![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python)](https://www.python.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-Auth%20%26%20Storage-3FCF8E?logo=supabase)](https://supabase.com/)
-[![Sem 7](https://img.shields.io/badge/Sem%207-Deep%20Learning%20mini%20project-amber)](#team--acknowledgements)
+
+**Live showcase:** [automod-ai-iota.vercel.app](https://automod-ai-iota.vercel.app) — browse the app and saved builds. The AI engines run locally on Apple Silicon, so generating new edits is disabled on the hosted site.
 
 ![Landing hero](docs/screenshots/hero.png)
 
